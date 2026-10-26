@@ -1,0 +1,19 @@
+frontend/node_modules/
+frontend/.next/
+frontend/*.tsbuildinfo
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+.pytest_cache/
+backend/data/
+*.pyc
+.env
+*.log
+tmp/
+
+.env.*
+!.env.example
+backend/env.txt
+# Local tooling and generated design previews
+.agents/
+.taste-skill/
