@@ -50,3 +50,12 @@ Billing date picker update: Completed visits and Bills & payments each use one d
 Open an existing bill and choose Edit bill. Master and Admin can add/remove additional charges, change manual charge descriptions/prices, adjust quantities, and edit the bill note. Original consultation fee, bill number/date, patient/doctor snapshot and payment history remain fixed. Saved catalog lines retain their original price; newly selected lines use the current master price. The corrected total cannot fall below money already received. Saving recalculates the outstanding balance and payment status. Bill/payment version checks prevent stale overwrites, retries are idempotent, and the audit log retains before/after charges, totals and notes. Cancel returns to the saved bill.
 
 Database update: billing and payments now use the configured Neon PostgreSQL database, retaining exact integer-paise arithmetic, transaction/version checks, idempotency and audit history. Existing SQLite data was not migrated; SQLite remains the offline regression-test backend.
+
+## Immutable bill revision history
+
+- The bill ID and printed bill number remain the same across edits. Content revisions start at v1 and increase by one per successful edit; the highest revision is current.
+- Separate bill_revisions records preserve the full bill snapshot, charges, quantities, prices, total, note and payment state at the time of saving. Editor identity, recorded timestamp and optional edit reason accompany each snapshot.
+- Database triggers reject UPDATE and DELETE of revision records. Authenticated staff can list/view historical revisions; historical views have no edit or payment controls. This supports review, but is not a guarantee against a privileged database administrator tampering with the database.
+- Payment recording keeps its existing separate ledger/audit trail. It increments the concurrency version, not the content revision. Historical payment amounts are explicitly snapshots at the revision timestamp.
+- Existing bills receive a v1 baseline on upgrade, labelled System migration. Earlier revisions not stored by the previous application cannot be reconstructed by this feature.
+- Idempotent retry does not add revisions; stale edits are rejected. Revision insertion and current bill update share one transaction.

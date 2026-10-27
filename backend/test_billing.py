@@ -185,3 +185,56 @@ def test_edit_bill_preserves_identity_payments_and_rejects_stale_or_underpaid_to
     assert response.json()['paid_paise']==60000 and response.json()['balance_paise']==10000
     with m.connect() as db:
         assert db.execute("SELECT count(*) FROM audits WHERE action='Edited bill'").fetchone()[0]==2
+
+
+def test_bill_revisions_are_immutable_sequential_and_idempotent(client):
+    import pytest
+    _,_,_,v=priced_setup(client)
+    original=post(client,'/bills',bill_body(client,v)).json()
+    bid=original['id']
+    assert original['bill_revision']==1
+    key=str(uuid.uuid4())
+    payload={'version':original['version'],'extras':[{'description':'Dressing','unit_price_paise':10000,'quantity':1}],'note':'Corrected note','reason':'Added omitted dressing'}
+    updated=client.patch(f'/api/bills/{bid}',json=payload,headers={'Idempotency-Key':key})
+    assert updated.status_code==200,updated.text
+    latest=updated.json()
+    assert latest['id']==bid and latest['number']==original['number'] and latest['bill_revision']==2
+    assert client.patch(f'/api/bills/{bid}',json=payload,headers={'Idempotency-Key':key}).json()==latest
+    assert client.patch(f'/api/bills/{bid}',json=payload,headers={'Idempotency-Key':str(uuid.uuid4())}).status_code==409
+    history=client.get(f'/api/bills/{bid}/revisions').json()['items']
+    assert [r['revision'] for r in history]==[2,1]
+    assert history[0]['reason']=='Added omitted dressing' and history[0]['actor_name']=='Test Master'
+    saved=client.get(f'/api/bills/{bid}/revisions/1').json()['bill']
+    assert saved['lines']==original['lines'] and saved['note']==original['note'] and saved['total_paise']==50000
+    assert client.get(f'/api/bills/{bid}/revisions/99').status_code==404
+    paid=post(client,f'/bills/{bid}/payments',{'version':latest['version'],'amount_paise':10000,'method':'Cash'}).json()
+    assert paid['bill_revision']==2
+    third=client.patch(f'/api/bills/{bid}',json={'version':paid['version'],'extras':[],'note':'Removed dressing','reason':'Dressing was not provided'},headers={'Idempotency-Key':str(uuid.uuid4())}).json()
+    assert third['bill_revision']==3
+    snapshot=client.get(f'/api/bills/{bid}/revisions/3').json()['bill']
+    assert snapshot['paid_paise']==10000 and snapshot['balance_paise']==40000
+    assert client.get(f'/api/bills/{bid}/revisions/1').json()['bill']==saved
+    with m.connect() as db:
+        with pytest.raises(Exception,match='immutable'):
+            db.execute('UPDATE bill_revisions SET reason=? WHERE bill_id=? AND revision=1',('tamper',bid))
+        db.rollback()
+    with m.connect() as db:
+        with pytest.raises(Exception,match='immutable'):
+            db.execute('DELETE FROM bill_revisions WHERE bill_id=?',(bid,))
+        db.rollback()
+
+
+def test_existing_bill_upgrade_creates_one_honest_baseline(client):
+    _,_,_,v=priced_setup(client)
+    original=post(client,'/bills',bill_body(client,v)).json()
+    # Disposable fixture only: simulate a database from before revision storage existed.
+    with m.connect() as db:
+        db.execute('DROP TABLE bill_revisions')
+    m.init_db()
+    rows=client.get(f"/api/bills/{original['id']}/revisions").json()['items']
+    assert len(rows)==1 and rows[0]['revision']==1
+    assert rows[0]['actor_name']=='System migration'
+    assert 'earlier revisions were not stored' in rows[0]['reason']
+    assert client.get(f"/api/bills/{original['id']}/revisions/1").json()['bill']['lines']==original['lines']
+    m.init_db()
+    assert len(client.get(f"/api/bills/{original['id']}/revisions").json()['items'])==1

@@ -63,7 +63,7 @@ export default function Home() {
   if(boot)return <div className="boot"><Brand/><Loading/></div>;
   if(!user)return <Login setup={setup} initialError={bootError} retry={initialize} onLogin={u=>{setUser(u);setSetup(false);setBootError('');setNav('OPD');seen.current='';}}/>;
   if(user.must_change)return <PasswordGate user={user} onDone={async()=>{setUser(await api('/auth/me'));}}/>;
-  if(!catalog)return <div className="boot"><Brand/><Loading/><ErrorBox message={bootError}/><button className="btn secondary" onClick={changed}>Retry</button></div>;
+  if(!catalog)return <div className="boot"><Brand/>{!bootError&&<Loading/>}<ErrorBox message={bootError}/></div>;
   const hospital=catalog.settings.hospital_name;
   return <div className="app-shell">
     {mobile&&<div className="sidebar-scrim" onClick={()=>setMobile(false)}/>}
@@ -75,7 +75,7 @@ export default function Home() {
       <div className="nav-label manage-label">Administration</div>
       <button className={`nav-item ${nav==='Settings'?'active':''}`} aria-label={user.role==='Master'?'Settings & setup':'My account'} title={user.role==='Master'?'Settings & setup':'My account'} onClick={()=>go('Settings')}><Settings2 size={19}/><span>{user.role==='Master'?'Settings & setup':'My account'}</span></button>
       <div className="sidebar-bottom"><div className="local-card"><span className={`status-dot ${bootError?'offline':''}`}/><div><strong>{bootError?'Server unavailable':'Server connected'}</strong><small>{bootError?'Check your local network':'Hospital server'}</small></div><LockKeyhole size={14}/></div>
-      <button className="user-card" aria-label={`Account settings for ${user.name}`} title={user.name} onClick={()=>setPasswordOpen(true)}><Avatar name={user.name} small/><span><strong>{user.name}</strong><small>{user.role} account</small></span><ChevronDown size={15}/></button></div>
+      </div>
     </aside>
     <div className="workspace"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-menu" aria-label="Open navigation" onClick={()=>setMobile(true)}><Menu size={21}/></button><span>Workspace</span><ChevronRight size={14}/><strong>{patientId?'Patient profile':nav}</strong></div><div className="header-actions"><form className="global-search" onSubmit={e=>{e.preventDefault();setNav('Patients');setPatientId(null);}}><SearchBox value={globalSearch} onChange={setGlobalSearch} placeholder="Find a patient…"/></form><span className="header-divider"/><button className="notification-btn icon-btn" onClick={()=>setReminderOpen(x=>!x)} aria-label={`Follow-up reminders: ${reminders.length}`}><Bell size={19}/>{reminders.length>0&&<i/>}</button><Avatar name={user.name} small/><button className="icon-btn" aria-label="Sign out" onClick={async()=>{try{await api('/auth/logout','POST');setUser(null);setFollowupsOpen(false);setCatalog(null);setOverlay(null);setReminders([]);setPatientId(null);}catch(e:any){notify(e.message);}}}><LogOut size={17}/></button></div></header>
     <main>

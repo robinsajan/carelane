@@ -531,3 +531,19 @@ test('department palette offers accessible pastel choices and updates selection'
   render(<DepartmentBadge name="General medicine" color={selected}/>);
   assert.equal(screen.getByText('General medicine').style.backgroundColor, 'rgb(237, 233, 254)');
 });
+
+test('bill history opens immutable versions without edit or payment actions',async()=>{
+ const {BillDialog}=await import('../app/billing');
+ const user=userEvent.setup({document:dom.window.document});
+ const original={id:9,number:'OPD-20261027-000009',version:1,bill_revision:1,visit_id:4,bill_date:'2026-10-27',total_paise:50000,paid_paise:0,balance_paise:50000,payment_status:'Unpaid',note:'Original note',payments:[],lines:[{description:'Consultation',kind:'Consultation',quantity:1,unit_price_paise:50000,amount_paise:50000}],snapshot:{hospital:{hospital_name:'Test hospital',address:'Test address',phone:''},patient:{name:'Asha',uhid:'AB12CD34',address:'Test address',phone:''},doctor_name:'Dr Test',department_name:'General medicine',visit_type:'New',visit_date:'2026-10-27',token:1,issued_by:'Test Master'}};
+ const latest={...original,version:2,bill_revision:2,note:'Corrected note'};
+ globalThis.fetch=async(input)=>{const path=String(input);if(path.endsWith('/revisions/1'))return Response.json({bill:original,revision:1,actor_name:'Test Master',recorded_at:'2026-10-27T04:00:00Z',reason:'Bill generated'});if(path.endsWith('/revisions'))return Response.json({items:[{revision:2,total_paise:50000,actor_name:'Test Master',recorded_at:'2026-10-27T05:00:00Z',reason:'Correction'},{revision:1,total_paise:50000,actor_name:'Test Master',recorded_at:'2026-10-27T04:00:00Z',reason:'Bill generated'}]});return Response.json(latest);};
+ render(<BillDialog billId={9} ctx={{...ctx,notify:()=>{},changed:()=>{}}} close={()=>{}}/>);
+ await user.click(await screen.findByRole('button',{name:'Version history · v2'}));
+ await user.click(await screen.findByRole('button',{name:'View v1'}));
+ await screen.findByText('Original note');
+ assert.equal(screen.queryByRole('button',{name:'Edit bill'}),null);
+ assert.equal(screen.queryByRole('button',{name:'Record payment'}),null);
+ assert.equal(document.querySelectorAll('.bill-print-surface').length,1);
+ assert.ok(screen.getByText(/Historical revision v1/));
+});

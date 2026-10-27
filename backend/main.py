@@ -113,6 +113,9 @@ def init_db():
           bill_date TEXT NOT NULL, currency TEXT NOT NULL DEFAULT 'INR', snapshot TEXT NOT NULL, lines TEXT NOT NULL,
           total_paise INTEGER NOT NULL CHECK(total_paise>=0), note TEXT NOT NULL DEFAULT '',
           version INTEGER NOT NULL DEFAULT 1, created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS bill_revisions(bill_id INTEGER NOT NULL REFERENCES bills(id), revision INTEGER NOT NULL CHECK(revision>0),
+          document TEXT NOT NULL, actor INTEGER NOT NULL REFERENCES users(id), actor_name TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '', recorded_at TEXT NOT NULL, PRIMARY KEY(bill_id,revision));
         CREATE TABLE IF NOT EXISTS bill_payments(id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL REFERENCES bills(id),
           amount_paise INTEGER NOT NULL CHECK(amount_paise>0), method TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '',
           received_by INTEGER NOT NULL REFERENCES users(id), receiver_name TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -150,6 +153,17 @@ def init_db():
         if 'version' not in (db.columns('bills') if DATABASE_URL else {row['name'] for row in db.execute('PRAGMA table_info(bills)')}):
             db.execute('ALTER TABLE bills ADD COLUMN version INTEGER NOT NULL DEFAULT 1')
         db.execute('INSERT OR IGNORE INTO settings(id,data) VALUES(1,?)', (dump(DEFAULT_SETTINGS),))
+        # Existing bills become an honest baseline; historical contents cannot be invented.
+        for row in db.execute('SELECT id,created_by FROM bills b WHERE NOT EXISTS (SELECT 1 FROM bill_revisions r WHERE r.bill_id=b.id)').fetchall():
+            actor = record(db, 'users', row['created_by'])
+            save_bill_revision(db, row['id'], {'id': actor['id'], 'name': 'System migration'}, 'Existing bill baseline; earlier revisions were not stored.')
+        if DATABASE_URL:
+            db.execute("""CREATE OR REPLACE FUNCTION reject_bill_revision_change() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'Bill revisions are immutable'; END; $$""")
+            db.execute('CREATE OR REPLACE TRIGGER bill_revisions_immutable BEFORE UPDATE OR DELETE ON bill_revisions FOR EACH ROW EXECUTE FUNCTION reject_bill_revision_change()')
+        else:
+            for action in ('UPDATE', 'DELETE'):
+                db.execute(f"CREATE TRIGGER IF NOT EXISTS bill_revisions_no_{action.lower()} BEFORE {action} ON bill_revisions BEGIN SELECT RAISE(ABORT, 'Bill revisions are immutable'); END")
         lookup_defaults = []
         for kind, values in {'visit_type': ['New', 'Follow-up'], 'complaint': ['Fever', 'Cough', 'Headache', 'Abdominal pain'],
                              'referral': ['Walk-in', 'Doctor referral'], 'cancel_reason': ['Patient request', 'Doctor unavailable'],
@@ -854,6 +868,7 @@ def visit_detail(vid: int, user=Depends(current_user), db=Depends(database)):
 
 def bill_json(db, bid):
     bill = record(db, 'bills', bid)
+    bill['bill_revision'] = db.execute('SELECT COALESCE(MAX(revision),0) FROM bill_revisions WHERE bill_id=?', (bid,)).fetchone()[0]
     bill['number'] = f"OPD-{bill['bill_date'].replace('-', '')}-{bill['id']:06d}"
     bill['snapshot'], bill['lines'] = json.loads(bill['snapshot']), json.loads(bill['lines'])
     bill['payments'] = [dict(row) for row in db.execute('SELECT * FROM bill_payments WHERE bill_id=? ORDER BY id', (bid,))]
@@ -861,6 +876,33 @@ def bill_json(db, bid):
     bill['balance_paise'] = bill['total_paise'] - bill['paid_paise']
     bill['payment_status'] = 'Paid' if bill['balance_paise'] == 0 else 'Part paid' if bill['paid_paise'] else 'Unpaid'
     return bill
+
+
+def save_bill_revision(db, bid, user, reason=''):
+    document = bill_json(db, bid)
+    revision = document['bill_revision'] + 1
+    document['bill_revision'] = revision
+    timestamp = now()
+    db.execute('''INSERT INTO bill_revisions(bill_id,revision,document,actor,actor_name,reason,recorded_at)
+        VALUES(?,?,?,?,?,?,?)''', (bid, revision, dump(document), user['id'], user['name'], reason, timestamp))
+    return revision
+
+
+@app.get('/api/bills/{bid}/revisions')
+def bill_revisions(bid: int, user=Depends(current_user), db=Depends(database)):
+    record(db, 'bills', bid)
+    rows = db.execute('SELECT revision,actor,actor_name,reason,recorded_at,document FROM bill_revisions WHERE bill_id=? ORDER BY revision DESC', (bid,)).fetchall()
+    return {'items': [{**{k: row[k] for k in ('revision', 'actor', 'actor_name', 'reason', 'recorded_at')},
+                       'total_paise': json.loads(row['document'])['total_paise']} for row in rows]}
+
+
+@app.get('/api/bills/{bid}/revisions/{revision}')
+def bill_revision_detail(bid: int, revision: int, user=Depends(current_user), db=Depends(database)):
+    row = db.execute('SELECT * FROM bill_revisions WHERE bill_id=? AND revision=?', (bid, revision)).fetchone()
+    if not row:
+        fail('Bill revision not found.', 404)
+    return {'bill': json.loads(row['document']), 'revision': row['revision'], 'actor_name': row['actor_name'],
+            'recorded_at': row['recorded_at'], 'reason': row['reason']}
 
 
 @app.get('/api/visits/{vid}/billing')
@@ -929,12 +971,14 @@ def create_bill(body: BillInput, request: Request, user=Depends(current_user), d
         fail('Bill total exceeds the supported amount.')
     bid = db.execute('''INSERT INTO bills(visit_id,bill_date,snapshot,lines,total_paise,note,created_by,created_at)
         VALUES(?,?,?,?,?,?,?,?)''', (visit['id'], today(db), dump(snapshot), dump(lines), total, body.note, user['id'], now())).lastrowid
+    save_bill_revision(db, bid, user, 'Bill generated')
     audit(db, user, 'Generated bill', 'bill', bid, dump({'visit_id': visit['id'], 'total_paise': total}))
     return save_replay(db, user, request, key, digest, bill_json(db, bid))
 
 
 class BillUpdate(StrictModel):
     version: int
+    reason: str = Field(default='', max_length=1000)
     extras: list[BillExtra] = Field(default_factory=list, max_length=50)
     note: str = Field(default='', max_length=1000)
 
@@ -965,7 +1009,8 @@ def edit_bill(bid: int, body: BillUpdate, request: Request, user=Depends(current
         fail('Bill total cannot be less than payments already recorded.', 409)
     db.execute('UPDATE bills SET lines=?,total_paise=?,note=?,version=version+1 WHERE id=?',
                (dump(lines), total, body.note, bid))
-    audit(db, user, 'Edited bill', 'bill', bid, dump({'before': {'lines': old['lines'], 'total_paise': old['total_paise'], 'note': old['note']},
+    revision = save_bill_revision(db, bid, user, body.reason)
+    audit(db, user, 'Edited bill', 'bill', bid, dump({'revision': revision, 'reason': body.reason, 'before': {'lines': old['lines'], 'total_paise': old['total_paise'], 'note': old['note']},
            'after': {'lines': lines, 'total_paise': total, 'note': body.note}}))
     return save_replay(db, user, request, key, digest, bill_json(db, bid))
 
