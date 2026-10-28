@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { ArrowRight, CalendarClock, Check, ChevronRight, Clock3, Edit3, MessageSquareText, Phone, Plus, Stethoscope } from 'lucide-react';
 import { api, dateText, localInput, query, type Row } from './api';
 import type { AppContext } from './page';
@@ -10,8 +10,18 @@ import { Avatar, Badge, Empty, ErrorBox, Field, Loading, Modal, Pager, SearchBox
 export function FollowupsPanel({ctx,close}:{ctx:AppContext;close:()=>void}) {
   const [day,setDay]=useState(ctx.catalog.today),[page,setPage]=useState(1);
   const {data,error,loading}=useLoad('/followups?'+query({view:'All',due_date:day,page}),ctx.refresh);
+  const [upcomingOpen,setUpcomingOpen]=useState(false);
+  const upcomingId=useId();
+  const upcoming=useLoad('/followups?'+query({view:'Next 7 days',count_only:true}),ctx.refresh);
   const open=(id:number)=>{close();ctx.openFollowup(id);};
   return <Modal title="Follow-ups" subtitle="Return visits for the selected date" onClose={close} drawer guard={false}>
+    <section className="followup-upcoming">
+      <button type="button" className="followup-upcoming-toggle" aria-expanded={upcomingOpen} aria-controls={upcomingId} onClick={()=>setUpcomingOpen(value=>!value)}>
+        <CalendarClock size={16}/><span><strong>Upcoming visits</strong><small>Next 7 days</small></span><b>{upcoming.loading?'…':upcoming.error?'—':upcoming.data?.total??0}</b><ChevronRight size={17} className={upcomingOpen?'expanded':''}/>
+      </button>
+      <ErrorBox message={upcoming.error}/>
+      <div id={upcomingId} hidden={!upcomingOpen}>{upcomingOpen&&<UpcomingFollowups ctx={ctx} open={open}/>}</div>
+    </section>
     <div className="followup-panel-controls"><Field label="Follow-up date"><input type="date" required value={day} onInput={e=>{if(e.currentTarget.value){setDay(e.currentTarget.value);setPage(1);}}}/></Field><button className="btn secondary" onClick={()=>{setDay(ctx.catalog.today);setPage(1);}}>Today</button></div>
     <div className="followup-panel-summary"><span>{data?.total??0} follow-ups · {dateText(day)}</span><button className="text-btn" onClick={()=>{close();ctx.newFollowup();}}><Plus size={16}/>Schedule follow-up</button></div>
     <ErrorBox message={error}/>
@@ -20,6 +30,12 @@ export function FollowupsPanel({ctx,close}:{ctx:AppContext;close:()=>void}) {
     </button>)}</div>:!error&&<Empty title="No follow-ups for this date" text="Choose another date or schedule a return visit."/>}
     {!loading&&data&&<Pager data={data} page={page} setPage={setPage}/>}
   </Modal>;
+}
+
+function UpcomingFollowups({ctx,open}:{ctx:AppContext;open:(id:number)=>void}) {
+  const [page,setPage]=useState(1);
+  const {data,error,loading}=useLoad('/followups?'+query({view:'Next 7 days',page}),ctx.refresh);
+  return <><ErrorBox message={error}/>{loading?<Loading/>:data?.items.length?<><div className="followup-panel-list">{data.items.map((f:Row)=><button type="button" key={f.id} className="followup-panel-row" onClick={()=>open(f.id)}><Avatar name={f.patient_name} small/><span className="followup-panel-person"><strong>{f.patient_name}</strong><small>{dateText(f.due_date)} · {f.due_time||'Date only'}</small><span>{f.doctor_name}</span></span><ChevronRight size={17}/></button>)}</div><Pager data={data} page={page} setPage={setPage}/></>:!error&&<p className="followup-upcoming-empty">No visits scheduled in the next 7 days.</p>}</>;
 }
 
 export function FollowupForm({patient,visit,existing,ctx,close,saved}:{patient?:Row;visit?:Row;existing?:Row;ctx:AppContext;close:()=>void;saved:()=>void}) {

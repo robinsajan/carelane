@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+# Offline tests must import successfully without configured Neon credentials.
+os.environ.setdefault('local_db', 'False' if os.environ.get('OPD_TEST_POSTGRES') == '1' else 'True')
 from backend import main as m
 
 
@@ -104,6 +106,19 @@ def test_registration_rules_and_idempotency(client):
     assert post(client,'/patients',{**body,'first_name':'NoPhone','phone':'','no_mobile':True}).status_code == 200
     future = (datetime.now()+timedelta(days=2)).date().isoformat()
     assert post(client,'/patients',{**body,'dob':future}).status_code == 422
+
+
+def test_registration_accepts_date_of_birth_or_age(client):
+    body = {'first_name': 'BirthDateOnly', 'gender': 'Female', 'no_mobile': True, 'address': 'Test locality'}
+    assert post(client, '/patients', body).status_code == 422
+    assert post(client, '/patients', {**body, 'age_value': None}).status_code == 422
+    birth = datetime.now().date().isoformat()
+    result = post(client, '/patients', {**body, 'dob': birth})
+    assert result.status_code == 200
+    assert result.json()['dob'] == birth
+    assert result.json()['age_value'] == 0
+    assert result.json()['age_unit'] == 'Days'
+    assert post(client, '/patients', {**body, 'first_name': 'AgeOnly', 'age_value': 0}).status_code == 200
 
 
 def test_patient_update_conflict_and_search(client):
@@ -527,3 +542,23 @@ def test_department_color_inherits_to_doctors_and_queue(client):
     del payload['color']
     assert client.patch(f"/api/departments/{dep['id']}", json=payload).json()['color'] == '#EDE9FE'
 
+
+def test_next_seven_days_followups_count_and_boundaries(client):
+    p = patient(client)
+    dep, dr = assignment(client)
+    day = datetime.fromisoformat(client.get('/api/catalog').json()['today'])
+    included = []
+    for offset in [0, 1, 3, 7, 8]:
+        due = (day + timedelta(days=offset)).date().isoformat()
+        item, body = follow(client, p, dep, dr, due_date=due, reminder_local=due+'T09:00')
+        if offset == 3:
+            client.patch(f"/api/followups/{item['id']}", json={**body, 'version': 1, 'reason': 'Patient cancelled', 'status': 'Cancelled'}).raise_for_status()
+        elif offset in [1, 7]:
+            included.append(item['id'])
+    params = {'view': 'Next 7 days'}
+    count = client.get('/api/followups', params={**params, 'count_only': True})
+    assert count.status_code == 200
+    assert count.json() == {'total': 2}
+    result = client.get('/api/followups', params=params).json()
+    assert result['total'] == 2
+    assert [item['id'] for item in result['items']] == included

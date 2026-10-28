@@ -66,7 +66,7 @@ def test_followup_pricing_zero_fee_and_reject_invalid_money(client):
     other=visit(client,p,dep,dr,duplicate_ack=True)
     other=client.patch(f"/api/visits/{other['id']}",json={'version':1,'status':'Completed'}).json()
     body=bill_body(client,other)
-    for amount in [-1,0,12.5,True]:
+    for amount in [-1,12.5,True]:
         assert post(client,'/bills',{**body,'extras':[{'description':'Extra','quantity':1,'unit_price_paise':amount}]}).status_code==422
     response=client.patch(f"/api/doctors/{dr['id']}",json={'name':dr['name'],'code':dr['code'],'department_id':dep['id'],'version':dr['version'],'consultation_fee_paise':0})
     assert response.status_code==200,response.text
@@ -133,7 +133,7 @@ def test_master_charge_catalog_prices_versions_and_snapshots(client):
     assert charge['price_paise']==12550
     assert client.get('/api/catalog').json()['billing_charges'][0]['id']==charge['id']
     extra={'description':charge['name'],'quantity':2,'unit_price_paise':12550,'charge_id':charge['id'],'charge_version':charge['version']}
-    assert post(client,'/bills',bill_body(client,v,[{**extra,'unit_price_paise':1}])).status_code==409
+    assert post(client,'/bills',bill_body(client,v,[{**extra,'description':'Changed name'}])).status_code==409
     bill=post(client,'/bills',bill_body(client,v,[extra])).json()
     assert bill['total_paise']==75100
     update={'name':'Dressing','price_paise':15000,'active':True,'version':charge['version']}
@@ -238,3 +238,22 @@ def test_existing_bill_upgrade_creates_one_honest_baseline(client):
     assert client.get(f"/api/bills/{original['id']}/revisions/1").json()['bill']['lines']==original['lines']
     m.init_db()
     assert len(client.get(f"/api/bills/{original['id']}/revisions").json()['items'])==1
+
+
+def test_all_bill_prices_editable_on_create_and_update(client):
+    p, dep, dr, v = priced_setup(client)
+    charge = post(client, '/billing-charges', {'name': 'Editable dressing', 'price_paise': 12550}).json()
+    extra = {'description': charge['name'], 'quantity': 2, 'unit_price_paise': 1000, 'charge_id': charge['id'], 'charge_version': charge['version']}
+    response = post(client, '/bills', {**bill_body(client, v, [extra]), 'consultation_fee_paise': 25000})
+    assert response.status_code == 200, response.text
+    bill = response.json()
+    assert bill['total_paise'] == 27000
+    response = client.patch(f"/api/bills/{bill['id']}", headers={'Idempotency-Key': str(uuid.uuid4())}, json={'version': bill['version'], 'consultation_fee_paise': 0, 'extras': [{**extra, 'unit_price_paise': 500}], 'reason': 'Adjusted all prices'})
+    assert response.status_code == 200, response.text
+    edited = response.json()
+    assert edited['total_paise'] == 1000
+    assert edited['lines'][0]['unit_price_paise'] == 0
+    assert client.get('/api/catalog').json()['billing_charges'][0]['price_paise'] == 12550
+    assert client.get(f"/api/bills/{bill['id']}/revisions/1").json()['bill']['total_paise'] == 27000
+    paid = post(client, f"/bills/{bill['id']}/payments", {'version': edited['version'], 'amount_paise': 1000, 'method': 'Cash'}).json()
+    assert client.patch(f"/api/bills/{bill['id']}", headers={'Idempotency-Key': str(uuid.uuid4())}, json={'version': paid['version'], 'consultation_fee_paise': 0, 'extras': []}).status_code == 409

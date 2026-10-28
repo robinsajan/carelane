@@ -8,6 +8,18 @@ The user confirmed an empty database. Only schema and default operational lists 
 
 The frontend still runs on this computer. A cloud database alone does not publish the frontend or make localhost available on a phone outside the network.
 
+## Choose the database
+
+Set the switch in `backend/.env`:
+
+```dotenv
+local_db=True
+# Optional local file; defaults to backend/data/opd.sqlite3
+# OPD_DATABASE=C:/path/to/hospital/backend/data/opd.sqlite3
+```
+
+Use `local_db=False` with the existing `DATABASE_URL` to use Neon. Local mode reads and updates SQLite; Neon mode reads and updates PostgreSQL. Restart the backend after changing the switch. The switch does not copy or synchronize records between databases. Check `/api/health`: `database` reports `sqlite` or `postgresql`. A local database without a Master account requires first-run setup.
+
 ## Start the backend
 
 From the backend directory with its virtual environment active:

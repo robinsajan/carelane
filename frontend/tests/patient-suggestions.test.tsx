@@ -401,7 +401,7 @@ test('bill draft submits additional charges in integer paise', async () => {
 test('unset consultation fee blocks bill generation',()=>{
   render(<BillDraft quote={{visit:{id:4,patient_name:'Asha',visit_type:'Follow-up'},consultation_fee_paise:null}} ctx={ctx} saved={()=>{}}/>);
   assert.equal((screen.getByRole('button',{name:'Generate bill'}) as HTMLButtonElement).disabled,true);
-  assert.match(screen.getByText(/Master must set/).textContent||'',/follow-up/);
+  assert.equal((screen.getByLabelText(/Doctor consultation fee/) as HTMLInputElement).readOnly,false);
 });
 
 test('partial payment submits exact amount and blocks overpayment',async()=>{
@@ -427,7 +427,7 @@ test('saved charge selection fills its price and submits catalog identity',async
  await user.selectOptions(screen.getByLabelText('Saved billing charge'),'7');
  assert.equal((screen.getByLabelText(/Charge 1/) as HTMLInputElement).value,'Dressing');
  assert.equal((screen.getByLabelText(/Unit price 1/) as HTMLInputElement).value,'125.50');
- assert.equal((screen.getByLabelText(/Unit price 1/) as HTMLInputElement).readOnly,true);
+ assert.equal((screen.getByLabelText(/Unit price 1/) as HTMLInputElement).readOnly,false);
  await user.click(screen.getByRole('button',{name:'Generate bill'}));
  await waitFor(()=>assert.equal(requests.length,1));
  assert.deepEqual(requests[0].body.extras,[{description:'Dressing',quantity:1,unit_price_paise:12550,charge_id:7,charge_version:2}]);
@@ -546,4 +546,26 @@ test('bill history opens immutable versions without edit or payment actions',asy
  assert.equal(screen.queryByRole('button',{name:'Record payment'}),null);
  assert.equal(document.querySelectorAll('.bill-print-surface').length,1);
  assert.ok(screen.getByText(/Historical revision v1/));
+});
+
+test('upcoming follow-ups show only the count until expanded', async () => {
+  globalThis.fetch=async(input)=>{
+    const path=String(input); requests.push({path,method:'GET',body:null});
+    const params=new URL(path,'http://localhost').searchParams;
+    if(params.get('count_only')==='true')return Response.json({total:1});
+    if(params.get('view')==='Next 7 days')return Response.json({total:1,page:1,items:[{id:99,patient_name:'Upcoming Patient',due_date:'2026-10-25',doctor_name:'Dr Test'}]});
+    return Response.json({total:0,page:1,items:[]});
+  };
+  render(<FollowupsPanel ctx={statusCtx} close={()=>{}}/>);
+  const toggle=screen.getByRole('button',{name:/Upcoming visits/});
+  await waitFor(()=>assert.match(toggle.textContent||'',/1/));
+  assert.equal(toggle.getAttribute('aria-expanded'),'false');
+  assert.equal(screen.queryByText('Upcoming Patient'),null);
+  assert.equal(requests.some(r=>r.path.includes('Next+7+days')&&!r.path.includes('count_only')),false);
+  const user=userEvent.setup({document:dom.window.document});
+  await user.click(toggle);
+  assert.ok(await screen.findByText('Upcoming Patient'));
+  assert.equal(toggle.getAttribute('aria-expanded'),'true');
+  await user.click(toggle);
+  assert.equal(screen.queryByText('Upcoming Patient'),null);
 });

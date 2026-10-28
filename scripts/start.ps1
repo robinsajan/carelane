@@ -6,6 +6,7 @@ $nextScript = Join-Path $projectRoot "frontend/node_modules/next/dist/bin/next"
 if (-not (Test-Path -LiteralPath $pythonExe)) { throw "Run scripts/install.ps1 first." }
 if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend/.next/BUILD_ID'))) { throw "Run npm.cmd run build in frontend first." }
 $previousDatabase = $env:OPD_DATABASE
+$previousLocalDb = $env:local_db
 $previousApiUrl = $env:API_URL
 $previousTelemetry = $env:NEXT_TELEMETRY_DISABLED
 $bindAddress = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
@@ -13,6 +14,7 @@ try {
   $env:NEXT_TELEMETRY_DISABLED = '1'
   $env:API_URL = "http://127.0.0.1:$ApiPort"
   if ($Demo) {
+    $env:local_db = 'True'
     $env:OPD_DATABASE = Join-Path $projectRoot 'backend/data/preview.sqlite3'
     if (-not (Test-Path -LiteralPath $env:OPD_DATABASE)) { throw "Create fictional data with: backend/.venv/Scripts/python.exe -m backend.seed_demo" }
   } elseif (-not $env:OPD_DATABASE) {
@@ -35,6 +37,7 @@ try {
   } finally { Pop-Location }
 } finally {
   $env:OPD_DATABASE = $previousDatabase
+  $env:local_db = $previousLocalDb
   $env:API_URL = $previousApiUrl
   $env:NEXT_TELEMETRY_DISABLED = $previousTelemetry
 }

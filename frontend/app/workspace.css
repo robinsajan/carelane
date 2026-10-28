@@ -163,6 +163,8 @@ main{background:var(--surface);border:1px solid var(--line);border-radius:16px;m
 .list-toolbar.wrap>.field{margin:0;max-width:180px}.list-toolbar.wrap>.field input{height:36px;font-size:13px}
 @media(max-width:600px){.bill-extra-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:10px}.bill-extra-row>.field:first-child{grid-column:1/-1}.bill-extra-row>.icon-btn{margin-top:26px}.bill-document-header{gap:16px;flex-wrap:wrap}.bill-document-header>div:last-child{text-align:left}.bill-document-parties{grid-template-columns:1fr;gap:16px}.bill-payment-form{padding:16px}.bill-payment-buttons{flex-wrap:wrap}.bill-payment-buttons>.btn{min-height:44px}.list-toolbar.wrap>.field{max-width:none;flex:1;min-width:120px}}
 @media print{
+ .bill-version,.bill-history-notice,.bill-history-context,.bill-payment-details{display:none!important}
+ .bill-totals>div:first-child{font-size:18px}
  body:has(.bill-print-surface){background:#fff!important;color:#000}
  body:has(.bill-print-surface) .app-shell>.sidebar,body:has(.bill-print-surface) .app-shell>.workspace,body:has(.bill-print-surface) .toast,body:has(.bill-print-surface) .reminder-panel,body:has(.bill-print-surface) .sidebar-scrim{display:none!important}
  body:has(.bill-print-surface) .modal-backdrop:not(:has(.bill-print-surface)){display:none!important}
@@ -247,3 +249,29 @@ th{padding:8px 12px;font-size:12px}td{padding:9px 12px;font-size:13px}.patient-c
 @media(max-width:1000px){.doctor-queue-board .queue-board-identity{grid-column:1/-1}.doctor-queue-board .queue-board-cell{align-self:start}.doctor-queue-board .queue-board-cell>h4{font-size:12px;color:#526174;margin-bottom:4px}}
 @media(max-width:650px){.doctor-queue-board .queue-board-rows{padding:0 10px 10px}.doctor-queue-board .queue-board-doctor{padding:14px 12px;gap:12px}.doctor-queue-board .queue-board-cell{border-left:0;border-top:1px solid #29425912;padding:12px 0 0}.doctor-queue-board .queue-board-identity h3{font-size:15px}.doctor-queue-board .queue-board-identity p{font-size:12px}}
 .bill-revision-list{display:flex;flex-direction:column}.bill-revision-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}.bill-revision-row>div{flex:1;min-width:0}.bill-revision-row small{display:block;font-size:12px;color:var(--muted);margin-top:5px}.bill-revision-row p{font-size:13px;margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.bill-history-notice{margin:16px 24px}.bill-screen-actions{flex-wrap:wrap}@media(max-width:600px){.bill-revision-row{flex-wrap:wrap}.bill-revision-row>div{flex-basis:100%}.bill-revision-row .btn{margin-left:auto}}
+/* Queue actions sit below the patient so names and billing controls have room. */
+.queue-board-cell .doctor-queue-entry{grid-template-columns:24px minmax(0,1fr);gap:8px 10px;padding:10px 0}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions{grid-column:1/-1;grid-row:2;justify-content:flex-start;flex-wrap:wrap;gap:6px;padding:0;margin-top:2px}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn{min-width:0;min-height:34px;height:auto;padding:7px 10px;gap:6px;font-size:12px;line-height:18px;white-space:nowrap;border-radius:6px}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn.queue-complete-bill{background:var(--ink);border-color:var(--ink);color:#fff}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn.queue-complete-bill:hover{background:#303a42;border-color:#303a42}
+.queue-board-cell .doctor-queue-entry .queue-cancel-btn{width:34px;min-width:34px;height:34px;min-height:34px;border-radius:6px;margin-left:auto}
+.queue-board-cell .doctor-queue-entry .queue-action-result{grid-column:1/-1;grid-row:2;max-width:none;font-size:12px}
+.queue-board-cell .doctor-queue-entry .doctor-queue-patient>button{text-align:left}
+@media(max-width:650px){.queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn,.queue-board-cell .doctor-queue-entry .queue-cancel-btn{min-height:44px}.queue-board-cell .doctor-queue-entry .queue-cancel-btn{width:44px;min-width:44px}}
+.followup-upcoming{margin:10px 24px 0;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.followup-upcoming-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;text-align:left;min-height:44px;color:var(--ink);background:#f7f9fb}
+.followup-upcoming-toggle>span{display:flex;flex:1;min-width:0;align-items:center;flex-wrap:wrap;gap:2px 8px}.followup-upcoming-toggle strong{font-size:13px;font-weight:600}.followup-upcoming-toggle small{font-size:12px;color:var(--muted)}.followup-upcoming-toggle>b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}.followup-upcoming-toggle>svg{flex-shrink:0;color:var(--muted)}.followup-upcoming-toggle .expanded{transform:rotate(90deg)}.followup-upcoming-toggle:hover{background:#edf2f6}.followup-upcoming-empty{font-size:13px;color:var(--muted);padding:16px;margin:0}.followup-upcoming .followup-panel-list{padding:0 14px}.followup-upcoming .pager{padding:12px 14px}.followup-upcoming .followup-panel-row:last-child{border-bottom:0}
+@media(max-width:600px){.followup-upcoming{margin:10px 16px 0}}
+/* Compact rows inside the upcoming-visits disclosure. */
+.followup-upcoming .followup-panel-row{padding:9px 0;gap:8px;align-items:center}
+.followup-upcoming .followup-panel-person{gap:2px}
+.followup-upcoming .followup-panel-person>strong{font-size:13px}
+.followup-upcoming .followup-panel-person>small,.followup-upcoming .followup-panel-person>span:not(.badge){font-size:12px;line-height:1.35}
+.followup-upcoming .avatar.small{width:26px;height:26px;min-width:26px;font-size:10px}
+.followup-upcoming .followup-panel-row>svg{width:14px;height:14px;margin-top:0}
+.followup-upcoming .followup-panel-list{max-height:240px;overflow-y:auto}
+.followup-upcoming .pager{padding:8px 10px;font-size:11px;gap:6px;flex-wrap:wrap}
+.followup-upcoming .pager .btn{min-height:28px;padding:4px 7px;font-size:11px}
+.followup-upcoming .followup-upcoming-empty{padding:10px;font-size:12px}
+@media(max-width:600px){.followup-upcoming .followup-panel-row{min-height:44px}.followup-upcoming .pager .btn{min-height:44px}}

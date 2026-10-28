@@ -17,8 +17,10 @@ import psycopg
 from dotenv import load_dotenv
 if __package__:
     from . import postgres
+    from .database_config import use_local_database, database_url
 else:
     import postgres
+    from database_config import use_local_database, database_url
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -27,10 +29,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT.parent / '.env', override=False)
 load_dotenv(ROOT / '.env', override=False)
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+# Database selection: local_db=True uses SQLite; False uses Neon PostgreSQL.
+# Set local_db in backend/.env, then restart the backend to apply the switch.
+local_db = use_local_database(os.environ)
+DATABASE_URL = database_url(local_db, os.environ)
 DATABASE_SCHEMA = os.environ.get('OPD_DATABASE_SCHEMA', 'public')
-if DATABASE_URL and not DATABASE_URL.startswith(('postgresql://', 'postgres://')):
-    raise RuntimeError('DATABASE_URL must be a PostgreSQL connection URL.')
 DB_PATH = Path(os.environ.get('OPD_DATABASE', ROOT / 'data' / 'opd.sqlite3'))
 SETUP_PATH = DB_PATH.with_suffix('.setup-key')
 STATES = ['Waiting', 'Called', 'Being Attended', 'On Hold', 'Completed', 'Cancelled', 'No Show']
@@ -416,7 +419,7 @@ class PatientInput(StrictModel):
     middle_name: str = Field(default='', max_length=80)
     surname: str = Field(default='', max_length=80)
     gender: str = Field(min_length=1, max_length=40)
-    age_value: int = Field(ge=0, le=150)
+    age_value: int | None = Field(default=None, ge=0, le=150)
     age_unit: str = 'Years'
     dob: str | None = None
     approximate: bool = True
@@ -432,6 +435,8 @@ class PatientInput(StrictModel):
     def validate_patient(self):
         if self.gender not in ['Male', 'Female', 'Other', 'Unknown', 'Prefer not to say']:
             raise ValueError('Select a valid gender.')
+        if not self.dob and self.age_value is None:
+            raise ValueError('Enter date of birth or age.')
         if self.age_unit not in ['Years', 'Months', 'Days']:
             raise ValueError('Select a valid age unit.')
         if not self.no_mobile and not re.fullmatch(r'\d{10}', self.phone):
@@ -920,10 +925,11 @@ class BillExtra(StrictModel):
     charge_version: int | None = None
     description: str = Field(min_length=1, max_length=200)
     quantity: int = Field(default=1, strict=True, ge=1, le=999)
-    unit_price_paise: int = Field(strict=True, ge=1, le=100_000_000)
+    unit_price_paise: int = Field(strict=True, ge=0, le=100_000_000)
 
 
 class BillInput(StrictModel):
+    consultation_fee_paise: int | None = Field(default=None, strict=True, ge=0, le=100_000_000)
     visit_id: int
     visit_version: int
     doctor_version: int
@@ -945,6 +951,8 @@ def create_bill(body: BillInput, request: Request, user=Depends(current_user), d
     doctor = record(db, 'doctors', visit['doctor_id'])
     check_version(doctor, body.doctor_version)
     fee = doctor['followup_fee_paise'] if visit['visit_type'] == 'Follow-up' else doctor['consultation_fee_paise']
+    if body.consultation_fee_paise is not None:
+        fee = body.consultation_fee_paise
     if fee is None:
         fail('Master must configure this doctor’s consultation fee for this visit type before billing.')
     patient = patient_json(record(db, 'patients', visit['patient_id']))
@@ -961,7 +969,7 @@ def create_bill(body: BillInput, request: Request, user=Depends(current_user), d
             check_version(charge, extra.charge_version)
             if not charge['active']:
                 fail('This billing charge is inactive. Remove it and select an active charge.', 409)
-            if extra.unit_price_paise != charge['price_paise'] or extra.description != charge['name']:
+            if extra.description != charge['name']:
                 fail('This billing charge has changed. Remove it and select it again.', 409)
         if not extra.description.strip():
             fail('Enter a description for every additional charge.')
@@ -977,6 +985,7 @@ def create_bill(body: BillInput, request: Request, user=Depends(current_user), d
 
 
 class BillUpdate(StrictModel):
+    consultation_fee_paise: int | None = Field(default=None, strict=True, ge=0, le=100_000_000)
     version: int
     reason: str = Field(default='', max_length=1000)
     extras: list[BillExtra] = Field(default_factory=list, max_length=50)
@@ -990,16 +999,16 @@ def edit_bill(bid: int, body: BillUpdate, request: Request, user=Depends(current
         return result
     old = bill_json(db, bid)
     check_version(old, body.version)
-    lines = [line for line in old['lines'] if line['kind'] == 'Consultation']
+    lines = [{**line, **({'unit_price_paise': body.consultation_fee_paise, 'amount_paise': line['quantity'] * body.consultation_fee_paise} if body.consultation_fee_paise is not None else {})} for line in old['lines'] if line['kind'] == 'Consultation']
     for extra in body.extras:
         if extra.charge_id is not None:
             retained = any(line.get('charge_id') == extra.charge_id and line.get('charge_version') == extra.charge_version
-                           and line['description'] == extra.description and line['unit_price_paise'] == extra.unit_price_paise
+                           and line['description'] == extra.description
                            for line in old['lines'] if line['kind'] == 'Additional charge')
             if not retained:
                 charge = record(db, 'billing_charges', extra.charge_id)
                 check_version(charge, extra.charge_version)
-                if not charge['active'] or charge['name'] != extra.description or charge['price_paise'] != extra.unit_price_paise:
+                if not charge['active'] or charge['name'] != extra.description:
                     fail('This billing charge has changed. Remove it and select it again.', 409)
         lines.append({**extra.model_dump(), 'amount_paise': extra.quantity * extra.unit_price_paise, 'kind': 'Additional charge'})
     total = sum(line['amount_paise'] for line in lines)
@@ -1116,7 +1125,7 @@ def follow_overdue(db, row):
 
 @app.get('/api/followups')
 def followups(view: str = 'All', doctor_id: int = 0, department_id: int = 0, status: str = '', assigned_to: int = 0,
-              q: str = '', page: int = 1, due_date: str = '', user=Depends(current_user), db=Depends(database)):
+              q: str = '', page: int = 1, due_date: str = '', count_only: bool = False, user=Depends(current_user), db=Depends(database)):
     where, args = ['1=1'], []
     if due_date:
         where.append('f.due_date=?')
@@ -1128,6 +1137,10 @@ def followups(view: str = 'All', doctor_id: int = 0, department_id: int = 0, sta
     if view == 'Due Today':
         where += ["f.status='Scheduled'", 'f.due_date=?']
         args.append(today(db))
+    elif view == 'Next 7 days':
+        day = local_now(db).date()
+        where += ["f.status='Scheduled'", 'f.due_date>?', 'f.due_date<=?']
+        args += [day.isoformat(), (day + timedelta(days=7)).isoformat()]
     elif view == 'Upcoming':
         where += ["f.status='Scheduled'", 'f.due_date>?']
         args.append(today(db))
@@ -1138,6 +1151,8 @@ def followups(view: str = 'All', doctor_id: int = 0, department_id: int = 0, sta
     args += [f'%{q[:100]}%', f'%{q[:100]}%']
     query = FOLLOW_SELECT + ' WHERE ' + ' AND '.join(where)
     total = db.execute('SELECT count(*) FROM ('+query+')', args).fetchone()[0]
+    if count_only:
+        return {'total': total}
     rows = db.execute(query+' ORDER BY f.due_date,f.due_time,f.id LIMIT 30 OFFSET ?', (*args, (max(1, page)-1)*30)).fetchall()
     return {'items': [{**dict(x), 'overdue': follow_overdue(db, x)} for x in rows], 'total': total, 'page': page}
 

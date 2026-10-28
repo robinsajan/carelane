@@ -10,6 +10,7 @@ if __name__ == '__main__':
     if PREVIEW.exists():
         raise SystemExit('Preview database already exists; it has not been modified.')
     os.environ['OPD_DATABASE'] = str(PREVIEW)
+    os.environ['local_db'] = 'True'
     from fastapi.testclient import TestClient
     from backend import main as m
 

@@ -59,7 +59,7 @@ For frontend development, use `npm.cmd run dev` instead of `run start`. The fron
 
 Other hospital devices can open the server's LAN address on port 3000. FastAPI stays bound to loopback; do not expose API port 8000 separately. LAN addressing, local HTTPS certificate trust, Windows firewall policy, server account permissions and service startup need to be configured on the hospital's selected machine before real patient use. Once local HTTPS is installed, set `OPD_SECURE_COOKIE=1` for secure session cookies.
 
-The configured database is Neon PostgreSQL. The backend requires internet access to Neon; browser clients still connect to the Next.js server. Offline SQLite mode is available only when no DATABASE_URL is configured. An unavailable Neon connection never silently falls back to SQLite.
+The configured database is Neon PostgreSQL. The backend requires internet access to Neon; browser clients still connect to the Next.js server. Set `local_db=True` in `backend/.env` to use local SQLite for all reads and writes, even when `DATABASE_URL` is configured. Set `local_db=False` to use Neon; this requires `DATABASE_URL`. Restart the backend after changing the switch. An unavailable Neon connection never silently falls back to SQLite.
 
 ## Follow-up reminders
 
@@ -104,7 +104,7 @@ Backups are server maintenance, not an in-app export option. Use unique filename
 .\backend\.venv\Scripts\python.exe -m backend.manage restore-copy "D:\HospitalBackups\opd-2026-10-23.sqlite3" "C:\HospitalData\restored-opd.sqlite3"
 ```
 
-For legacy/offline SQLite mode, the backup uses SQLite's backup API to include committed WAL data. Restore creates a separate new file and refuses to overwrite an existing/live database. After checking the restored copy, stop the app and remove the Neon DATABASE_URL configuration and set `OPD_DATABASE` to that copy's absolute path before restarting in offline mode. The restore test should verify patient/visit counts and a real sign-in in a separate controlled instance; successful file integrity alone is not the entire operational recovery procedure.
+For legacy/offline SQLite mode, the backup uses SQLite's backup API to include committed WAL data. Restore creates a separate new file and refuses to overwrite an existing/live database. After checking the restored copy, stop the app and set `local_db=True` in `backend/.env` and set `OPD_DATABASE` to that copy's absolute path before restarting in offline mode. The restore test should verify patient/visit counts and a real sign-in in a separate controlled instance; successful file integrity alone is not the entire operational recovery procedure.
 
 For local Master recovery, stop the application and run:
 
