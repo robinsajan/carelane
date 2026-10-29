@@ -388,3 +388,5 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 .password-toggle{position:absolute;inset:0 0 0 auto;display:flex;align-items:center;justify-content:center;width:44px;min-height:40px;padding:0;color:var(--muted);border-radius:0 6px 6px 0}
 .password-toggle:hover{color:var(--blue-dark);background:var(--blue-pale)}
 @media(max-width:600px){.password-input>input{min-height:44px;font-size:16px}.password-toggle{min-height:44px}}
+
+.availability-search{margin:16px 0}.availability-search .search-box{width:100%;max-width:none}
