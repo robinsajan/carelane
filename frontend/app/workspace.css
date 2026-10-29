@@ -351,3 +351,17 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 .account-popover>button{color:#303a29}
 .account-popover>button:hover,.account-popover>button:focus-visible{background:#e4eadc;color:#303a29}
 .reminder-icon{background:#e9dfcc;color:#70532e}
+
+/* Keep the date and Today action together at every viewport width. */
+.queue-date-controls{display:flex;align-items:flex-end;gap:8px;min-width:0}
+.queue-date-controls>.field{flex:1;min-width:0;max-width:190px}
+.queue-date-controls>.btn{height:32px;min-height:32px;flex-shrink:0}
+@media(max-width:600px){
+ .queue-scope-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:end}
+ .queue-scope-toolbar>.queue-date-controls{grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+ .queue-scope-toolbar .field,.queue-scope-toolbar .field:first-child{min-width:0;max-width:none;width:100%;margin:0}
+ .queue-date-controls>.btn{height:44px;min-height:44px;align-self:end;padding:8px 16px}
+ .queue-scope-toolbar input[type="date"]{display:block;width:100%;min-width:0;max-width:100%;height:44px;box-sizing:border-box;font-size:16px}
+ .queue-scope-toolbar .select-wrap,.queue-scope-toolbar select{width:100%;min-width:0;max-width:100%}
+ .queue-scope-toolbar>.opd-view-toggle{grid-column:1 / -1;min-height:44px}
+}
