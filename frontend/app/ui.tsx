@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, Search, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, Eye, EyeOff, Search, X } from 'lucide-react';
 import { api, type Row } from './api';
 
 export function useLoad(path: string, refresh: number = 0) {
@@ -51,3 +51,8 @@ export function Modal({ title, subtitle, children, onClose, wide=false, guard=tr
   return <div className={`modal-backdrop ${drawer?'drawer-backdrop':''}`} onMouseDown={e=>{if(e.target===e.currentTarget)close();}}><div ref={ref} className={`modal ${wide?'wide-modal':''} ${drawer?'side-drawer':''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onInput={()=>{dirty.current=true;}} onChange={()=>{dirty.current=true;}}><div className="modal-head"><div><h2 id={titleId}>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button className="icon-btn" aria-label="Close dialog" onClick={close}><X size={20}/></button></div>{children}</div></div>;
 }
 export function Submit({ busy, children='Save changes' }: {busy:boolean;children?:ReactNode}) { return <button type="submit" className="btn primary" disabled={busy}>{busy?<span className="spinner"/>:<Check size={16}/>} {busy?'Saving…':children}</button>; }
+
+export function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+ const [visible,setVisible]=useState(false);
+ return <span className="password-input"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} disabled={props.disabled} onClick={e=>{e.preventDefault();setVisible(value=>!value);}}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button></span>;
+}
