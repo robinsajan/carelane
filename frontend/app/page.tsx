@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, ArrowDownLeft, ArrowRight, Bell, CalendarClock, CalendarDays, Check, CheckCheck, ChevronDown, ChevronRight, CircleHelp, ClipboardList, Clock3, HeartPulse, LayoutDashboard, LockKeyhole, LogOut, Menu, Plus, Search, Settings2, ShieldCheck, Sparkles, Stethoscope, Users, X } from 'lucide-react';
 import { api, dateText, hospitalDate, query, type Row } from './api';
-import { Avatar, Badge, Empty, ErrorBox, Field, Loading, Modal, SearchBox, Submit, useLoad } from './ui';
+import { Avatar, Badge, Empty, ErrorBox, Field, Loading, Modal, Submit, useLoad } from './ui';
 import { PatientDirectory, PatientForm, PatientProfile } from './patients';
 import { Queue, VisitDetail, VisitForm } from './visits';
 import { InlineVisitStatus } from './visit-status';
@@ -21,7 +21,7 @@ export default function Home() {
   const [user,setUser]=useState<Row|null>(null), [boot,setBoot]=useState(true), [setup,setSetup]=useState(false), [bootError,setBootError]=useState('');
   const [followupsOpen,setFollowupsOpen]=useState(false);
   const [nav,setNav]=useState('OPD'), [mobile,setMobile]=useState(false), [refresh,setRefresh]=useState(0), [catalog,setCatalog]=useState<Row|null>(null);
-  const [toast,setToast]=useState(''), [overlay,setOverlay]=useState<Row|null>(null), [patientId,setPatientId]=useState<number|null>(null), [globalSearch,setGlobalSearch]=useState('');
+  const [toast,setToast]=useState(''), [overlay,setOverlay]=useState<Row|null>(null), [patientId,setPatientId]=useState<number|null>(null);
   const [reminders,setReminders]=useState<Row[]>([]), [reminderOpen,setReminderOpen]=useState(false), [passwordOpen,setPasswordOpen]=useState(false);
   const seen=useRef('');
   const initialize=useCallback(async()=>{setBoot(true);setBootError('');try {const health=await api('/health');setSetup(health.setup_required);if(!health.setup_required) { try{setUser(await api('/auth/me'));}catch(e:any){if(e.status!==401)throw e;}}}catch(e:any){setBootError(e.message);}finally{setBoot(false);}},[]);
@@ -55,7 +55,7 @@ export default function Home() {
     return()=>clearTimeout(timer);
   },[catalog]);
   const changed=()=>setRefresh(x=>x+1);
-  const go=(name:string)=>{if(!window.dispatchEvent(new Event('opd-before-navigation',{cancelable:true})))return;setNav(name);setPatientId(null);setMobile(false);setGlobalSearch('');};
+  const go=(name:string)=>{if(!window.dispatchEvent(new Event('opd-before-navigation',{cancelable:true})))return;setNav(name);setPatientId(null);setMobile(false);};
   const ctx: AppContext = {user:user||{},catalog:catalog||{},refresh,notify,changed,openBilling:(visitId)=>setOverlay({kind:'bill',visitId}),openBill:(billId)=>setOverlay({kind:'bill',billId}),openFollowups:()=>setFollowupsOpen(true),
     openPatient:(id)=>{setNav('Patients');setPatientId(id);setOverlay(null);},
     openVisit:(id)=>setOverlay({kind:'visitDetail',id}),newVisit:(patient,followup)=>setOverlay({kind:'visit',patient,followup}),
@@ -67,21 +67,30 @@ export default function Home() {
   const hospital=catalog.settings.hospital_name;
   return <div className="app-shell">
     {mobile&&<div className="sidebar-scrim" onClick={()=>setMobile(false)}/>}
-    <aside className={`sidebar ${mobile?'show':''}`}>
+    <aside id="workspace-navigation" aria-label="Workspace navigation" className={`sidebar ${mobile?'show':''}`}>
       <Brand/>
+      <button className="icon-btn sidebar-close mobile-menu" aria-label="Close navigation" onClick={()=>setMobile(false)}><X size={20}/></button>
       <div className="hospital-switch"><span className="hospital-symbol"><HeartPulse size={20}/></span><div><strong>{hospital}</strong><small>OPD administration</small></div><ShieldCheck size={15}/></div>
       <div className="nav-label">Workspace</div>
       <nav>{navigation.map(({name,icon:Icon})=><button key={name} className={`nav-item ${nav===name?'active':''}`} aria-label={name} title={name} aria-current={nav===name?'page':undefined} onClick={()=>go(name)}><Icon size={19}/><span>{name}</span>{name==='Follow-ups'&&reminders.length>0&&<b>{reminders.length}</b>}</button>)}</nav>
-      <div className="nav-label manage-label">Administration</div>
-      <button className={`nav-item ${nav==='Settings'?'active':''}`} aria-label={user.role==='Master'?'Settings & setup':'My account'} title={user.role==='Master'?'Settings & setup':'My account'} onClick={()=>go('Settings')}><Settings2 size={19}/><span>{user.role==='Master'?'Settings & setup':'My account'}</span></button>
-      <div className="sidebar-bottom"><div className="local-card"><span className={`status-dot ${bootError?'offline':''}`}/><div><strong>{bootError?'Server unavailable':'Server connected'}</strong><small>{bootError?'Check your local network':'Hospital server'}</small></div><LockKeyhole size={14}/></div>
+      {user.role==='Master'&&<><div className="nav-label manage-label">Administration</div>
+      <button className={`nav-item ${nav==='Settings'?'active':''}`} aria-label="Settings & setup" title="Settings & setup" onClick={()=>go('Settings')}><Settings2 size={19}/><span>Settings & setup</span></button></>}
+      <div className="sidebar-bottom">
+      <button className="nav-item" title="Follow-up reminders" aria-label={`Follow-up reminders: ${reminders.length}`} aria-expanded={reminderOpen} onClick={()=>{setReminderOpen(x=>!x);setMobile(false);}}><Bell size={19}/><span>Reminders</span>{reminders.length>0&&<b>{reminders.length}</b>}</button>
+      <button type="button" className="account-trigger" popoverTarget="account-options" aria-label={`Account options for ${user.name}`} title={user.name}><Avatar name={user.name} small/><span className="account-name">{user.name}</span></button>
+      <div id="account-options" popover="auto" className="account-popover">
+        <strong>{user.name}</strong>
+        <button type="button" onClick={()=>{document.getElementById('account-options')?.hidePopover();setPasswordOpen(true);setMobile(false);}}><LockKeyhole size={16}/>Change password</button>
+        <button type="button" onClick={async()=>{try{await api('/auth/logout','POST');setUser(null);setFollowupsOpen(false);setCatalog(null);setOverlay(null);setReminders([]);setPatientId(null);}catch(e:any){notify(e.message);}}}><LogOut size={16}/>Sign out</button>
+      </div>
       </div>
     </aside>
-    <div className="workspace"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-menu" aria-label="Open navigation" onClick={()=>setMobile(true)}><Menu size={21}/></button><span>Workspace</span><ChevronRight size={14}/><strong>{patientId?'Patient profile':nav}</strong></div><div className="header-actions"><form className="global-search" onSubmit={e=>{e.preventDefault();setNav('Patients');setPatientId(null);}}><SearchBox value={globalSearch} onChange={setGlobalSearch} placeholder="Find a patient…"/></form><span className="header-divider"/><button className="notification-btn icon-btn" onClick={()=>setReminderOpen(x=>!x)} aria-label={`Follow-up reminders: ${reminders.length}`}><Bell size={19}/>{reminders.length>0&&<i/>}</button><Avatar name={user.name} small/><button className="icon-btn" aria-label="Sign out" onClick={async()=>{try{await api('/auth/logout','POST');setUser(null);setFollowupsOpen(false);setCatalog(null);setOverlay(null);setReminders([]);setPatientId(null);}catch(e:any){notify(e.message);}}}><LogOut size={17}/></button></div></header>
+    <div className="workspace">
+    <button className="icon-btn mobile-menu navigation-toggle" aria-label="Open navigation" aria-expanded={mobile} aria-controls="workspace-navigation" onClick={()=>setMobile(true)}><Menu size={21}/></button>
     <main>
       <ErrorBox message={bootError}/>
       {nav==='Dashboard'&&<Dashboard ctx={ctx}/>}
-      {nav==='Patients'&&(patientId?<PatientProfile id={patientId} ctx={ctx} back={()=>setPatientId(null)} edit={p=>setOverlay({kind:'patient',patient:p})}/>:<PatientDirectory ctx={ctx} search={globalSearch} register={()=>setOverlay({kind:'patient'})}/>)}
+      {nav==='Patients'&&(patientId?<PatientProfile id={patientId} ctx={ctx} back={()=>setPatientId(null)} edit={p=>setOverlay({kind:'patient',patient:p})}/>:<PatientDirectory ctx={ctx} search="" register={()=>setOverlay({kind:'patient'})}/>)}
       {nav==="OPD"&&<Queue ctx={ctx} register={()=>setOverlay({kind:'patient',fromOPD:true})}/>}
       {nav==='Billing'&&<Billing ctx={ctx}/>}
       {nav==='Settings'&&<Settings ctx={ctx} password={()=>setPasswordOpen(true)}/>}
