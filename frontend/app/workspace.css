@@ -332,20 +332,22 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 ::selection{background:#c5d2b7;color:#2f3827}
 @media print{body,main,.bill-print-surface{background:#fff!important;color:#000!important}}
 
-/* Olive navigation with warm yellow lettering and a clear selected state. */
-.sidebar{--nav-ground:#414d2d;--nav-text:#f4e9b7;--nav-highlight:#ffe18a;background:var(--nav-ground);color:var(--nav-text);border-right-color:#56643d}
-.sidebar .brand,.sidebar .brand>span,.sidebar .brand>strong,.sidebar .hospital-switch strong,.sidebar .account-name{color:var(--nav-highlight)}
-.sidebar .brand strong span,.sidebar .hospital-switch small,.sidebar .hospital-switch>svg,.sidebar .nav-label{color:#e0d7ad}
-.sidebar .nav-item{color:var(--nav-text)}
-.sidebar .nav-item:hover,.sidebar .account-trigger:hover{background:#52603b;color:var(--nav-highlight)}
-.sidebar .nav-item.active,.sidebar:hover .nav-item.active,.sidebar:focus-within .nav-item.active{background:#5c6b41;color:var(--nav-highlight)}
-.sidebar .nav-item.active>svg{color:var(--nav-highlight)}
-.sidebar .nav-item b{background:var(--nav-highlight);color:#354024}
-.sidebar .account-trigger .avatar{background:var(--nav-highlight);border-color:#f1cc69;color:#354024}
-.sidebar .sidebar-close{color:var(--nav-highlight)}
-.sidebar button:focus-visible{outline-color:var(--nav-highlight)}
-.navigation-toggle{background:#414d2d;color:#ffe18a;border-color:#56643d}
-.account-popover{background:#414d2d;color:#f4e9b7;border-color:#69764e}
-.account-popover>strong{color:#ffe18a;border-color:#69764e}
-.account-popover>button{color:#f4e9b7}
-.account-popover>button:hover,.account-popover>button:focus-visible{background:#52603b;color:#ffe18a}
+/* Reference palette: olive #667b49, sage #b8c9a9, cream #f4efe4, champagne #c39b62. */
+:root{--bg:#e5e9dd;--surface:#f4efe4;--ink:#303a29;--muted:#59634f;--line:#d5dcca;--blue:#667b49;--blue-dark:#4b6037;--blue-pale:#e4eadc;--control:#a7b69a;--background:#e5e9dd;--foreground:#303a29;--card:#f4efe4;--border:#d5dcca;--input:#a7b69a;--ring:#667b49;--primary:#54693d;--primary-foreground:#f4efe4;--muted-foreground:#59634f;--champagne:#c39b62;--sage:#b8c9a9}
+.sidebar{--nav-ground:#667b49;--nav-text:#f4efe4;--nav-highlight:#f4efe4;background:var(--nav-ground);color:var(--nav-text);border-right-color:#768a5b}
+.sidebar .brand,.sidebar .brand>span,.sidebar .brand>strong,.sidebar .hospital-switch strong,.sidebar .account-name{color:#f4efe4}
+.sidebar .brand strong span,.sidebar .hospital-switch small,.sidebar .hospital-switch>svg,.sidebar .nav-label{color:#e1e8d8}
+.sidebar .nav-item{color:#f4efe4}
+.sidebar .nav-item:hover,.sidebar .account-trigger:hover{background:#75895a;color:#f4efe4}
+.sidebar .nav-item.active,.sidebar:hover .nav-item.active,.sidebar:focus-within .nav-item.active{background:#b8c9a9;color:#303e24}
+.sidebar .nav-item.active>svg{color:#303e24}
+.sidebar .nav-item b{background:#b8c9a9;color:#303e24}
+.sidebar .account-trigger .avatar{background:#f4efe4;border-color:#c39b62;color:#4b6037}
+.sidebar .sidebar-close{color:#f4efe4}
+.sidebar button:focus-visible{outline-color:#f4efe4}
+.navigation-toggle{background:#667b49;color:#f4efe4;border-color:#768a5b}
+.account-popover{background:#f4efe4;color:#303a29;border-color:#b8c9a9}
+.account-popover>strong{color:#4b6037;border-color:#d5dcca}
+.account-popover>button{color:#303a29}
+.account-popover>button:hover,.account-popover>button:focus-visible{background:#e4eadc;color:#303a29}
+.reminder-icon{background:#e9dfcc;color:#70532e}
