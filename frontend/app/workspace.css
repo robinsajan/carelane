@@ -331,3 +331,21 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 .reminder-icon{background:#efe2c9;color:#71552e}
 ::selection{background:#c5d2b7;color:#2f3827}
 @media print{body,main,.bill-print-surface{background:#fff!important;color:#000!important}}
+
+/* Olive navigation with warm yellow lettering and a clear selected state. */
+.sidebar{--nav-ground:#414d2d;--nav-text:#f4e9b7;--nav-highlight:#ffe18a;background:var(--nav-ground);color:var(--nav-text);border-right-color:#56643d}
+.sidebar .brand,.sidebar .brand>span,.sidebar .brand>strong,.sidebar .hospital-switch strong,.sidebar .account-name{color:var(--nav-highlight)}
+.sidebar .brand strong span,.sidebar .hospital-switch small,.sidebar .hospital-switch>svg,.sidebar .nav-label{color:#e0d7ad}
+.sidebar .nav-item{color:var(--nav-text)}
+.sidebar .nav-item:hover,.sidebar .account-trigger:hover{background:#52603b;color:var(--nav-highlight)}
+.sidebar .nav-item.active,.sidebar:hover .nav-item.active,.sidebar:focus-within .nav-item.active{background:#5c6b41;color:var(--nav-highlight)}
+.sidebar .nav-item.active>svg{color:var(--nav-highlight)}
+.sidebar .nav-item b{background:var(--nav-highlight);color:#354024}
+.sidebar .account-trigger .avatar{background:var(--nav-highlight);border-color:#f1cc69;color:#354024}
+.sidebar .sidebar-close{color:var(--nav-highlight)}
+.sidebar button:focus-visible{outline-color:var(--nav-highlight)}
+.navigation-toggle{background:#414d2d;color:#ffe18a;border-color:#56643d}
+.account-popover{background:#414d2d;color:#f4e9b7;border-color:#69764e}
+.account-popover>strong{color:#ffe18a;border-color:#69764e}
+.account-popover>button{color:#f4e9b7}
+.account-popover>button:hover,.account-popover>button:focus-visible{background:#52603b;color:#ffe18a}
