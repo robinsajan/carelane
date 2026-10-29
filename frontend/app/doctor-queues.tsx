@@ -6,7 +6,7 @@ import { ArrowRight, Check, ListOrdered, Plus, ReceiptText, RefreshCw, MoreHoriz
 import type { Row } from './api';
 import type { AppContext } from './page';
 import { api, dateText, query } from './api';
-import { Avatar, Empty, ErrorBox, Loading, Modal, useLoad } from './ui';
+import { Avatar, Empty, ErrorBox, Loading, Modal, Pager, useLoad } from './ui';
 
 
 export function DoctorQueuePatient({visit,ctx,next=false}:{visit:Row;ctx:AppContext;next?:boolean}) {
@@ -14,20 +14,18 @@ export function DoctorQueuePatient({visit,ctx,next=false}:{visit:Row;ctx:AppCont
   const [confirmed,setConfirmed]=useState<Row|null>(null);
   const current=confirmed&&confirmed.version>visit.version?confirmed:visit;
   const moved=current.status!==visit.status;
-  const save=async(status:string,note='',generateBill=false)=>{
+  const save=async(status:string,note='')=>{
     if(busy)return;
     setBusy(true);setError('');
     try {
       setConfirmed(await api(`/visits/${current.id}`,'PATCH',{version:current.version,status,reason:note}));
       setCancel(false);setReason('');ctx.changed();ctx.notify(`Visit marked ${status.toLowerCase()}`);
-      if(generateBill)ctx.openBilling(current.id);
     }catch(e:any){setError(e.message);if(e.status===409)ctx.changed();}finally{setBusy(false);}
   };
   return <div className={`doctor-queue-entry ${visit.status==='Being Attended'?'attending-entry':''}`}>
     <div className="doctor-queue-patient"><span className="token">{String(visit.token).padStart(2,'0')}</span><button title={`${visit.patient_name} · ${visit.uhid}`} onClick={()=>ctx.openVisit(visit.id)}><strong>{visit.patient_name}</strong><small>{visit.status==='Being Attended'?'In consultation':visit.status==='Cancelled'?'Cancelled':'Next in line'}</small></button>{next&&<span className="queue-next">Next</span>}</div>
     {moved?<p className="queue-action-result" role="status">Marked {current.status.toLowerCase()}</p>:<div className="queue-patient-actions">
       {visit.status==='Waiting'&&<button type="button" className="btn secondary compact" disabled={busy} aria-label={`Attend ${visit.patient_name}`} onClick={()=>void save('Being Attended')}>Attend<ArrowRight size={13}/></button>}
-      {visit.status==='Being Attended'&&<button type="button" className="btn primary compact queue-complete-bill" disabled={busy} aria-label={`Complete and generate bill for ${visit.patient_name}`} onClick={()=>void save('Completed','',true)}><ReceiptText size={14}/>Complete & bill</button>}
       {visit.status==='Being Attended'&&<button type="button" className="btn secondary compact" disabled={busy} aria-label={`Complete visit for ${visit.patient_name}`} onClick={()=>void save('Completed')}><Check size={13}/>Complete</button>}
       {visit.status==='Cancelled'?<button type="button" className="btn secondary compact" disabled={busy} aria-label={`Return ${visit.patient_name} to waiting`} onClick={()=>void save('Waiting','Returned to waiting queue')}>Back to waiting</button>:<button type="button" className="queue-cancel-btn" title="Cancel visit" disabled={busy} aria-label={`Cancel visit for ${visit.patient_name}`} onClick={()=>setCancel(!cancel)}><UserRoundMinus size={16}/><span>Cancel</span></button>}
       {busy&&<span role="status">Saving…</span>}
@@ -73,6 +71,23 @@ export function DoctorQueues({ day, department, ctx, select }: {
     {availabilityOpen&&<DoctorAvailability ctx={ctx} close={()=>setAvailabilityOpen(false)}/>}
     <footer className="queue-board-footer"><span>Daily queues · Tokens are separate for each doctor</span><span><RefreshCw size={15}/>Updates after saved changes</span></footer>
   </section>;
+}
+
+
+export function CompletedPatients({day,department,ctx}:{day:string;department:string;ctx:AppContext}) {
+ const [page,setPage]=useState(1);
+ const path='/visits?'+query({day,department_id:department||0,status:'Completed',page});
+ const {data,error,loading,dataPath}=useLoad(path,ctx.refresh);
+ const current=dataPath===path?data:null;
+ return <section className="card completed-patients" aria-label="Completed patients">
+  <div className="card-heading"><div><h2>Completed patients</h2><p>{dateText(day)} · {current?.total??0} completed visits</p></div></div>
+  <ErrorBox message={error}/>
+  {!current&&loading?<Loading/>:current?.items.length?<><div className="completed-patient-list">{current.items.map((visit:Row)=><div className="completed-patient-row" key={visit.id}>
+   <button className="patient-cell" onClick={()=>ctx.openVisit(visit.id)}><Avatar name={visit.patient_name} small/><span><strong>{visit.patient_name}</strong><small>{visit.uhid}</small></span></button>
+   <div className="completed-patient-doctor"><strong>{visit.doctor_name}</strong><DepartmentBadge name={visit.department_name} color={visit.department_color}/></div>
+   <button type="button" className="btn secondary compact" aria-label={`${visit.bill_id?'View bill':'Generate bill'} for ${visit.patient_name}`} onClick={()=>visit.bill_id?ctx.openBill(visit.bill_id):ctx.openBilling(visit.id)}><ReceiptText size={14}/>{visit.bill_id?'View bill':'Generate bill'}</button>
+  </div>)}</div><Pager data={current} page={page} setPage={setPage}/></>:!error&&<Empty title="No completed patients" text="Completed visits will appear here for billing."/>}
+ </section>;
 }
 
 
