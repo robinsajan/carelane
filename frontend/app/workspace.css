@@ -390,3 +390,74 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 @media(max-width:600px){.password-input>input{min-height:44px;font-size:16px}.password-toggle{min-height:44px}}
 
 .availability-search{margin:16px 0}.availability-search .search-box{width:100%;max-width:none}
+
+/* Patient name and actions share one compact row. */
+.queue-board-cell .doctor-queue-entry{grid-template-columns:24px minmax(0,1fr) auto;column-gap:8px;align-items:center}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions{grid-column:3;grid-row:1;flex-wrap:nowrap;justify-content:flex-end;margin-top:0;gap:4px}
+.queue-board-cell .doctor-queue-entry .queue-action-result{grid-column:3;grid-row:1;margin:0}
+.queue-board-cell .doctor-queue-entry .queue-cancel-btn{margin-left:0}
+.queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn{padding:6px 8px}
+@media(max-width:650px){
+ .queue-board-cell .doctor-queue-entry{column-gap:6px}
+ .queue-board-cell .doctor-queue-entry .queue-patient-actions>.btn{min-height:44px;padding:6px 8px}
+}
+
+/* Tight vertical rhythm between doctor rows. */
+.doctor-queue-board .queue-board-rows{row-gap:6px}
+.doctor-queue-board .queue-board-doctor{padding-top:6px;padding-bottom:6px;min-height:0;row-gap:6px}
+.doctor-queue-board .queue-board-cell .queue-board-clear{padding-top:4px;padding-bottom:4px;margin-top:0;margin-bottom:0}
+.doctor-queue-board .queue-board-cell .doctor-queue-entry{padding-top:2px;padding-bottom:2px;margin-bottom:0}
+.doctor-queue-board .queue-board-identity .department-badge{margin-bottom:2px}
+.doctor-queue-board .queue-board-identity p{margin-top:2px;margin-bottom:0}
+@media(max-width:650px){.doctor-queue-board .queue-board-cell{padding-top:6px;padding-bottom:0}}
+
+/* Completed visits: a compact ledger with one clear billing action. */
+.completed-patients>.card-heading{padding:12px 16px}
+.completed-table-scroll{overflow-x:auto}
+.completed-patients .completed-table{width:100%;min-width:440px;border-collapse:collapse;table-layout:fixed}
+.completed-table th:nth-child(1){width:38%}.completed-table th:nth-child(2){width:34%}.completed-table th:nth-child(3){width:28%}
+.completed-patients .completed-table th{padding:7px 16px;background:transparent;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;text-align:left;border-bottom:1px solid var(--line)}
+.completed-patients .completed-table td{padding:6px 16px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:13px;background:transparent}
+.completed-table tbody tr:last-child td{border-bottom:0}
+.completed-table tbody tr:hover{background:#e6ebdd66}
+.completed-patient-link{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:3px 0;max-width:100%;min-height:32px}
+.completed-table .completed-patient-link strong,.completed-table .completed-doctor-details strong{font-size:13px;font-weight:500;color:var(--ink);line-height:1.4;overflow-wrap:anywhere}
+.completed-patient-link:hover strong{text-decoration:underline;text-underline-offset:3px}
+.completed-table .completed-patient-link small{font-size:11px;color:var(--muted);line-height:1.4}
+.completed-doctor-details{display:flex;flex-direction:column;gap:1px}
+.completed-doctor-details>span{font-size:11px;color:var(--muted);line-height:1.4}
+.completed-table th:last-child,.completed-table td:last-child{text-align:right}
+.completed-bill-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--primary);border-radius:5px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:500;line-height:18px;white-space:nowrap;transition:background .15s,border-color .15s}
+.completed-bill-button:hover{background:var(--blue-dark);border-color:var(--blue-dark)}
+.completed-bill-button.is-issued{background:transparent;border-color:var(--control);color:var(--blue-dark)}
+.completed-bill-button.is-issued:hover{background:var(--blue-pale);border-color:var(--blue)}
+.completed-bill-button svg{flex-shrink:0}
+@media(max-width:600px){
+ .completed-patients .completed-table th,.completed-patients .completed-table td{padding-left:10px;padding-right:10px;position:static}
+ .completed-patients .completed-table{min-width:420px}
+ .completed-bill-button{min-height:44px;padding:6px 8px;gap:5px}
+ .completed-bill-button>svg:last-child{display:none}
+}
+
+.completed-search{padding:0 16px 10px}.completed-search .search-box{width:100%;max-width:360px}
+@media(max-width:600px){.completed-search{padding:0 10px 10px}.completed-search .search-box{max-width:none}}
+
+.completed-patients .completed-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap}
+.completed-heading>div:first-child{min-width:0}
+.completed-heading .completed-search{padding:0;flex:0 1 320px;min-width:130px}
+.completed-heading .completed-search .search-box{max-width:none;min-width:0;width:100%}
+.completed-heading .completed-search input{min-width:0;width:100%}
+@media(max-width:600px){.completed-heading h2{font-size:14px}.completed-heading .completed-search{flex-basis:45%}.completed-heading p{font-size:11px}}
+
+/* Queue actions share the compact, deliberate treatment of billing controls. */
+.doctor-queue-board .queue-board-cell .queue-patient-actions{gap:6px}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>.btn{display:inline-flex;align-items:center;justify-content:center;min-width:0;height:32px;min-height:32px;padding:6px 10px;gap:6px;border-radius:5px;font-size:12px;font-weight:500;line-height:18px;box-shadow:none}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>.queue-attend-action{background:var(--surface);border-color:var(--control);color:var(--blue-dark)}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>.queue-attend-action:hover{background:var(--blue-pale);border-color:var(--blue)}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>.queue-finish-action{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>.queue-finish-action:hover{background:var(--blue-dark);border-color:var(--blue-dark)}
+.doctor-queue-board .queue-board-cell .queue-cancel-btn{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:32px;min-width:32px;height:32px;min-height:32px;border:1px solid transparent;border-radius:5px;color:var(--muted);background:transparent}
+.doctor-queue-board .queue-board-cell .queue-cancel-btn>span{display:none}
+.doctor-queue-board .queue-board-cell .queue-cancel-btn:hover{color:#923e40;background:#f3e7e3;border-color:#dfc5bd}
+.doctor-queue-board .queue-board-cell .queue-patient-actions>button:disabled{background:var(--blue-pale);color:var(--muted);border-color:var(--line);cursor:wait}
+@media(max-width:650px){.doctor-queue-board .queue-board-cell .queue-patient-actions>.btn,.doctor-queue-board .queue-board-cell .queue-cancel-btn{height:44px;min-height:44px}.doctor-queue-board .queue-board-cell .queue-cancel-btn{width:44px;min-width:44px}}
