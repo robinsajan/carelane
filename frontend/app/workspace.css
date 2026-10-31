@@ -523,3 +523,79 @@ input:focus,select:focus,textarea:focus{outline-color:var(--ring);border-color:v
 @media(prefers-reduced-motion:reduce){.btn,.icon-btn,.text-btn{transition:none}}
 
 @media(min-width:1101px){.mobile-menu,.navigation-toggle{display:none}}
+
+/* Doctor availability is indicated by the initials ring. */
+.doctor-status-avatar{display:inline-flex;flex-shrink:0;border:2px solid #39804b;border-radius:50%;padding:3px;align-items:center;justify-content:center;background:var(--surface)}
+.doctor-status-avatar>.avatar.small{width:30px;height:30px;min-width:30px;border:0;border-radius:50%;background:#e2ebdb;color:#365b30;font-size:11px;font-weight:600}
+.doctor-consulting .doctor-status-avatar{border-color:#ba4e4e}
+.doctor-consulting .doctor-status-avatar>.avatar.small{background:#f3e1de;color:#913c3c}
+.doctor-inactive .doctor-status-avatar{border-color:#8a9182}
+.doctor-inactive .doctor-status-avatar>.avatar.small{background:#e5e7e0;color:#606757}
+
+/* Hospital identity stays visible above the workspace on every screen. */
+:root{--hospital-bar-height:56px}
+.hospital-topbar{position:fixed;inset:0 0 auto 0;z-index:45;min-height:var(--hospital-bar-height);height:var(--hospital-bar-height);display:flex;align-items:center;gap:12px;padding:0 22px;background:#667b49;color:#f4efe4;border-bottom:1px solid #7d9065}
+.hospital-topbar>svg{flex-shrink:0}
+.hospital-topbar>strong{font-size:17px;font-weight:600;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell>.sidebar{top:var(--hospital-bar-height)}
+.app-shell>.workspace{padding-top:calc(var(--hospital-bar-height) + 6px)}
+.app-shell>.workspace>main{min-height:calc(100dvh - var(--hospital-bar-height) - 12px)}
+.sidebar>.nav-label{margin-top:20px}
+.reminder-panel{top:calc(var(--hospital-bar-height) + 10px)}
+@media(max-width:1100px){
+ .hospital-topbar{padding:0 12px;gap:10px}
+ .hospital-topbar .navigation-toggle{position:static;display:inline-flex;flex-shrink:0;margin:0;background:transparent;border-color:transparent;color:#f4efe4}
+ .hospital-topbar .navigation-toggle:hover{background:#75895a}
+ .sidebar-scrim{top:var(--hospital-bar-height)}
+ .app-shell>.workspace>main{padding-top:18px}
+}
+@media(max-width:600px){.hospital-topbar>strong{font-size:15px}.app-shell>.workspace{padding-top:var(--hospital-bar-height)}.app-shell>.workspace>main{min-height:calc(100dvh - var(--hospital-bar-height))}}
+@media print{.hospital-topbar{display:none!important}.app-shell>.workspace{padding-top:0!important}}
+
+/* A slim hospital bar occupies only the content area, leaving the rail intact. */
+:root{--hospital-bar-height:36px}
+.hospital-topbar{left:64px;padding:0 12px;gap:8px;z-index:35}
+.hospital-topbar>svg{width:17px;height:17px}
+.hospital-topbar>strong{font-size:14px;line-height:1.2}
+.app-shell>.sidebar{top:0}
+.app-shell>.workspace{padding-top:calc(var(--hospital-bar-height) + 4px)}
+.app-shell>.workspace>main{min-height:calc(100dvh - var(--hospital-bar-height) - 10px)}
+@media(max-width:1100px){
+ :root{--hospital-bar-height:44px}
+ .hospital-topbar{left:0;padding:0 6px;gap:6px}
+ .hospital-topbar .navigation-toggle{width:36px;min-width:36px;height:40px;min-height:40px;padding:6px}
+ .app-shell>.sidebar{top:var(--hospital-bar-height)}
+ .app-shell>.workspace>main{padding-top:12px}
+}
+@media(max-width:600px){.hospital-topbar>strong{font-size:14px}.app-shell>.workspace{padding-top:var(--hospital-bar-height)}}
+
+/* The hospital bar follows the expanding rail with one continuous olive surface. */
+.hospital-topbar{border:0;border-radius:0 0 10px 0;transition:left .16s ease}
+.app-shell>.sidebar{border-right:0}
+@media(min-width:1101px){
+ .app-shell:has(>.sidebar:hover)>.hospital-topbar,.app-shell:has(>.sidebar:focus-within)>.hospital-topbar{left:228px}
+ .app-shell>.sidebar:hover,.app-shell>.sidebar:focus-within{box-shadow:none}
+}
+@media(max-width:1100px){.hospital-topbar{border-radius:0 0 10px 10px}}
+@media(prefers-reduced-motion:reduce){.hospital-topbar{transition:none}}
+
+.sidebar>nav{margin-top:16px}.sidebar>nav+.nav-item{margin-top:0}
+
+/* Round the inner olive frame where the header meets the content sheet. */
+@media(min-width:1101px){
+ .app-shell>.workspace{background:#667b49;padding-top:var(--hospital-bar-height)}
+ .app-shell>.workspace>main{border-top-left-radius:20px;border-top-right-radius:10px;border-top:0;border-left:0;overflow:clip;min-height:calc(100dvh - var(--hospital-bar-height) - 6px)}
+}
+
+/* Billing row actions: clear document and payment icons, no extra labels. */
+.billing-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.billing-icon-action{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--blue-dark);transition:background .15s,border-color .15s}
+.billing-icon-action:hover{background:var(--blue-pale);border-color:var(--blue)}
+.billing-icon-action.payment-action{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.billing-icon-action.payment-action:hover{background:var(--blue-dark);border-color:var(--blue-dark)}
+.billing-icon-action:disabled{background:#e4e7dc;border-color:var(--line);color:#77816b;cursor:not-allowed}
+.completed-bill-button{border-radius:6px;padding:6px 11px;gap:7px;font-weight:500;min-height:34px}
+.completed-bill-button:not(.is-issued){background:#54693d;border-color:#54693d;color:#f4efe4}
+.completed-bill-button:not(.is-issued):hover{background:#435831;border-color:#435831}
+.completed-bill-button.is-issued{background:transparent;border-color:var(--control);color:var(--blue-dark)}
+@media(max-width:650px){.billing-icon-action{width:44px;height:44px}.completed-bill-button{min-height:44px}}

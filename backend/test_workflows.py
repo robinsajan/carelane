@@ -562,3 +562,30 @@ def test_next_seven_days_followups_count_and_boundaries(client):
     result = client.get('/api/followups', params=params).json()
     assert result['total'] == 2
     assert [item['id'] for item in result['items']] == included
+
+
+def test_service_bill_without_visit(client):
+    p=patient(client)
+    body={'patient_id':p['id'],'extras':[{'description':'X-ray chest','quantity':1,'unit_price_paise':45000}]}
+    key=str(uuid.uuid4())
+    response=post(client,'/service-bills',body,key)
+    assert response.status_code==200,response.text
+    bill=response.json()
+    assert bill['visit_id'] is None
+    assert bill['number'].startswith('BILL-')
+    assert bill['total_paise']==45000
+    assert all(line['kind']=='Additional charge' for line in bill['lines'])
+    assert post(client,'/service-bills',body,key).json()['id']==bill['id']
+    assert client.get('/api/visits').json()['total']==0
+    assert client.get('/api/bills').json()['items'][0]['id']==bill['id']
+    assert post(client,'/service-bills',{'patient_id':p['id'],'extras':[]}).status_code==422
+    assert post(client,'/service-bills',{'patient_id':99999,'extras':body['extras']}).status_code==404
+    paid=post(client,f"/bills/{bill['id']}/payments",{'version':bill['version'],'amount_paise':10000,'method':'Cash','reference':''})
+    assert paid.status_code==200,paid.text
+    updated=paid.json()
+    edited=client.patch(f"/api/bills/{bill['id']}",headers={'Idempotency-Key':str(uuid.uuid4())},json={'version':updated['version'],'extras':[{'description':'X-ray chest','quantity':1,'unit_price_paise':50000}],'note':'Service bill edit'})
+    assert edited.status_code==200,edited.text
+    assert edited.json()['balance_paise']==40000
+    assert len(client.get(f"/api/bills/{bill['id']}/revisions").json()['items'])==2
+    empty=client.patch(f"/api/bills/{bill['id']}",headers={'Idempotency-Key':str(uuid.uuid4())},json={'version':edited.json()['version'],'extras':[]})
+    assert empty.status_code==400

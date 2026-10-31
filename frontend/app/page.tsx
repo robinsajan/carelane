@@ -10,11 +10,11 @@ import { InlineVisitStatus } from './visit-status';
 import { VisitActions } from './visit-actions';
 import { FollowupsPanel, FollowupDetail, FollowupForm } from './followups';
 import { Reports, Settings } from './settings';
-import { Billing, BillDialog } from './billing';
+import { Billing, BillDialog, ServiceBillDialog } from './billing';
 import { PasswordRules, validPassword } from './password-rules';
 import { ReceiptText } from 'lucide-react';
 
-export type AppContext = { user:Row; catalog:Row; refresh:number; notify:(message:string)=>void; changed:()=>void; openPatient:(id:number)=>void; openVisit:(id:number)=>void; newVisit:(patient?:Row,followup?:Row)=>void; newFollowup:(patient?:Row,visit?:Row)=>void; openFollowup:(id:number)=>void; openFollowups:()=>void; openBilling:(visitId:number)=>void; openBill:(billId:number)=>void };
+export type AppContext = { user:Row; catalog:Row; refresh:number; notify:(message:string)=>void; changed:()=>void; openPatient:(id:number)=>void; openVisit:(id:number)=>void; newVisit:(patient?:Row,followup?:Row)=>void; newFollowup:(patient?:Row,visit?:Row)=>void; openFollowup:(id:number)=>void; openFollowups:()=>void; newBill?:()=>void; openBilling:(visitId:number)=>void; openBill:(billId:number)=>void };
 const navigation = [{name:'OPD',icon:ClipboardList},{name:'Dashboard', icon:LayoutDashboard},{name:'Patients',icon:Users},{name:'Billing',icon:ReceiptText}];
 
 export default function Home() {
@@ -56,7 +56,7 @@ export default function Home() {
   },[catalog]);
   const changed=()=>setRefresh(x=>x+1);
   const go=(name:string)=>{if(!window.dispatchEvent(new Event('opd-before-navigation',{cancelable:true})))return;setNav(name);setPatientId(null);setMobile(false);};
-  const ctx: AppContext = {user:user||{},catalog:catalog||{},refresh,notify,changed,openBilling:(visitId)=>setOverlay({kind:'bill',visitId}),openBill:(billId)=>setOverlay({kind:'bill',billId}),openFollowups:()=>setFollowupsOpen(true),
+  const ctx: AppContext = {user:user||{},catalog:catalog||{},refresh,notify,changed,newBill:()=>setOverlay({kind:'serviceBill'}),openBilling:(visitId)=>setOverlay({kind:'bill',visitId}),openBill:(billId)=>setOverlay({kind:'bill',billId}),openFollowups:()=>setFollowupsOpen(true),
     openPatient:(id)=>{setNav('Patients');setPatientId(id);setOverlay(null);},
     openVisit:(id)=>setOverlay({kind:'visitDetail',id}),newVisit:(patient,followup)=>setOverlay({kind:'visit',patient,followup}),
     newFollowup:(patient,visit)=>setOverlay({kind:'follow',patient,visit}),openFollowup:(id)=>setOverlay({kind:'followDetail',id})};
@@ -66,14 +66,13 @@ export default function Home() {
   if(!catalog)return <div className="boot"><Brand/>{!bootError&&<Loading/>}<ErrorBox message={bootError}/></div>;
   const hospital=catalog.settings.hospital_name;
   return <div className="app-shell">
+    <header className="hospital-topbar"><button className="icon-btn mobile-menu navigation-toggle" aria-label="Open navigation" aria-expanded={mobile} aria-controls="workspace-navigation" onClick={()=>setMobile(true)}><Menu size={21}/></button><HeartPulse size={22} aria-hidden="true"/><strong>{hospital}</strong></header>
     {mobile&&<div className="sidebar-scrim" onClick={()=>setMobile(false)}/>}
     <aside id="workspace-navigation" aria-label="Workspace navigation" className={`sidebar ${mobile?'show':''}`}>
       <Brand/>
       <button className="icon-btn sidebar-close mobile-menu" aria-label="Close navigation" onClick={()=>setMobile(false)}><X size={20}/></button>
-      <div className="hospital-switch"><span className="hospital-symbol"><HeartPulse size={20}/></span><div><strong>{hospital}</strong><small>OPD administration</small></div><ShieldCheck size={15}/></div>
-      <div className="nav-label">Workspace</div>
       <nav>{navigation.map(({name,icon:Icon})=><button key={name} className={`nav-item ${nav===name?'active':''}`} aria-label={name} title={name} aria-current={nav===name?'page':undefined} onClick={()=>go(name)}><Icon size={19}/><span>{name}</span>{name==='Follow-ups'&&reminders.length>0&&<b>{reminders.length}</b>}</button>)}</nav>
-      {user.role==='Master'&&<><div className="nav-label manage-label">Administration</div>
+      {user.role==='Master'&&<>
       <button className={`nav-item ${nav==='Settings'?'active':''}`} aria-label="Settings & setup" title="Settings & setup" onClick={()=>go('Settings')}><Settings2 size={19}/><span>Settings & setup</span></button></>}
       <div className="sidebar-bottom">
       <button className="nav-item" title="Follow-up reminders" aria-label={`Follow-up reminders: ${reminders.length}`} aria-expanded={reminderOpen} onClick={()=>{setReminderOpen(x=>!x);setMobile(false);}}><Bell size={19}/><span>Reminders</span>{reminders.length>0&&<b>{reminders.length}</b>}</button>
@@ -86,7 +85,6 @@ export default function Home() {
       </div>
     </aside>
     <div className="workspace">
-    <button className="icon-btn mobile-menu navigation-toggle" aria-label="Open navigation" aria-expanded={mobile} aria-controls="workspace-navigation" onClick={()=>setMobile(true)}><Menu size={21}/></button>
     <main>
       <ErrorBox message={bootError}/>
       {nav==='Dashboard'&&<Dashboard ctx={ctx}/>}
@@ -100,6 +98,7 @@ export default function Home() {
     {followupsOpen&&<FollowupsPanel ctx={ctx} close={()=>setFollowupsOpen(false)}/>}
     {overlay?.kind==='patient'&&<PatientForm patient={overlay.patient} ctx={ctx} close={()=>setOverlay(null)} saved={(p,visit,existing)=>{changed();notify(existing?'Existing patient ready':overlay.patient?'Patient updated':'Patient registered');if(visit)setOverlay({kind:'visit',patient:p});else {setOverlay(null);if(!overlay.fromOPD)ctx.openPatient(p.id);}}}/>}
     {overlay?.kind==='visit'&&<VisitForm patient={overlay.patient} followup={overlay.followup} ctx={ctx} close={()=>setOverlay(null)} saved={()=>{setOverlay(null);setNav('OPD');setPatientId(null);changed();notify('Visit created and added to the queue');}}/>}
+    {overlay?.kind==='serviceBill'&&<ServiceBillDialog ctx={ctx} close={()=>setOverlay(null)}/>}
     {overlay?.kind==='bill'&&<BillDialog visitId={overlay.visitId} billId={overlay.billId} ctx={ctx} close={()=>setOverlay(null)}/>}
     {overlay?.kind==='visitDetail'&&<VisitDetail id={overlay.id} ctx={ctx} close={()=>setOverlay(null)}/>}
     {overlay?.kind==='follow'&&<FollowupForm patient={overlay.patient} visit={overlay.visit} ctx={ctx} close={()=>setOverlay(null)} saved={()=>{setOverlay(null);changed();notify('Follow-up scheduled');}}/>}

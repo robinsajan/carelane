@@ -112,7 +112,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS doctor_day_availability(doctor_id INTEGER PRIMARY KEY REFERENCES doctors(id), disabled_until TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS billing_charges(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE,
             price_paise INTEGER NOT NULL CHECK(price_paise>0), active INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS bills(id INTEGER PRIMARY KEY AUTOINCREMENT, visit_id INTEGER NOT NULL UNIQUE REFERENCES visits(id),
+        CREATE TABLE IF NOT EXISTS bills(id INTEGER PRIMARY KEY AUTOINCREMENT, visit_id INTEGER UNIQUE REFERENCES visits(id),
           bill_date TEXT NOT NULL, currency TEXT NOT NULL DEFAULT 'INR', snapshot TEXT NOT NULL, lines TEXT NOT NULL,
           total_paise INTEGER NOT NULL CHECK(total_paise>=0), note TEXT NOT NULL DEFAULT '',
           version INTEGER NOT NULL DEFAULT 1, created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
@@ -147,6 +147,31 @@ def init_db():
         CREATE TABLE IF NOT EXISTS idempotency(user_id INTEGER NOT NULL, key TEXT NOT NULL, path TEXT NOT NULL, digest TEXT NOT NULL,
           result TEXT NOT NULL, PRIMARY KEY(user_id,key));
         ''')
+        # Service-only bills have no OPD visit. Preserve existing bills and all references.
+        if DATABASE_URL:
+            db.execute('ALTER TABLE bills ALTER COLUMN visit_id DROP NOT NULL')
+        elif next(row for row in db.execute('PRAGMA table_info(bills)') if row['name'] == 'visit_id')['notnull']:
+            db.commit()
+            db.execute('PRAGMA foreign_keys=OFF')
+            try:
+                db.execute('BEGIN IMMEDIATE')
+                ddl = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='bills'").fetchone()[0]
+                ddl = 'CREATE TABLE bills_service_migration (' + ddl.split('(', 1)[1]
+                ddl = ddl.replace('visit_id INTEGER NOT NULL', 'visit_id INTEGER')
+                db.execute(ddl)
+                columns = ','.join(row['name'] for row in db.execute('PRAGMA table_info(bills)'))
+                db.execute(f'INSERT INTO bills_service_migration({columns}) SELECT {columns} FROM bills')
+                db.execute('DROP TABLE bills')
+                db.execute('ALTER TABLE bills_service_migration RENAME TO bills')
+                db.execute('CREATE INDEX bill_date_index ON bills(bill_date,id)')
+                if db.execute('PRAGMA foreign_key_check').fetchone():
+                    raise RuntimeError('Bill migration failed its foreign-key check.')
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
+            finally:
+                db.execute('PRAGMA foreign_keys=ON')
         if 'color' not in (db.columns('departments') if DATABASE_URL else {row['name'] for row in db.execute('PRAGMA table_info(departments)')}):
             db.execute("ALTER TABLE departments ADD COLUMN color TEXT NOT NULL DEFAULT '#DBEAFE'")
         doctor_columns = db.columns('doctors') if DATABASE_URL else {row['name'] for row in db.execute('PRAGMA table_info(doctors)')}
@@ -874,7 +899,8 @@ def visit_detail(vid: int, user=Depends(current_user), db=Depends(database)):
 def bill_json(db, bid):
     bill = record(db, 'bills', bid)
     bill['bill_revision'] = db.execute('SELECT COALESCE(MAX(revision),0) FROM bill_revisions WHERE bill_id=?', (bid,)).fetchone()[0]
-    bill['number'] = f"OPD-{bill['bill_date'].replace('-', '')}-{bill['id']:06d}"
+    prefix = 'OPD' if bill['visit_id'] is not None else 'BILL'
+    bill['number'] = f"{prefix}-{bill['bill_date'].replace('-', '')}-{bill['id']:06d}"
     bill['snapshot'], bill['lines'] = json.loads(bill['snapshot']), json.loads(bill['lines'])
     bill['payments'] = [dict(row) for row in db.execute('SELECT * FROM bill_payments WHERE bill_id=? ORDER BY id', (bid,))]
     bill['paid_paise'] = sum(payment['amount_paise'] for payment in bill['payments'])
@@ -984,6 +1010,44 @@ def create_bill(body: BillInput, request: Request, user=Depends(current_user), d
     return save_replay(db, user, request, key, digest, bill_json(db, bid))
 
 
+class ServiceBillInput(StrictModel):
+    patient_id: int
+    extras: list[BillExtra] = Field(min_length=1, max_length=50)
+    note: str = Field(default='', max_length=1000)
+
+
+@app.post('/api/service-bills')
+def create_service_bill(body: ServiceBillInput, request: Request, user=Depends(current_user), db=Depends(database)):
+    key, digest, result = replay(db, user, request, body.model_dump())
+    if result is not None:
+        return result
+    patient = patient_json(valid_patient(db, body.patient_id))
+    settings = get_settings(db)
+    snapshot = {'hospital': {field: settings[field] for field in ('hospital_name', 'address', 'phone')},
+                'patient': {field: patient[field] for field in ('name', 'uhid', 'address', 'phone', 'age_value', 'age_unit', 'gender')},
+                'doctor_name': '', 'department_name': '', 'visit_type': 'Services',
+                'visit_date': None, 'token': None, 'issued_by': user['name']}
+    lines = []
+    for extra in body.extras:
+        if extra.charge_id is not None:
+            charge = record(db, 'billing_charges', extra.charge_id)
+            check_version(charge, extra.charge_version)
+            if not charge['active'] or extra.description != charge['name']:
+                fail('This billing charge has changed. Remove it and select an active charge again.', 409)
+        if not extra.description.strip():
+            fail('Enter a description for every charge.')
+        lines.append({**extra.model_dump(), 'description': extra.description.strip(),
+                      'amount_paise': extra.quantity * extra.unit_price_paise, 'kind': 'Additional charge'})
+    total = sum(line['amount_paise'] for line in lines)
+    if total > 1_000_000_000:
+        fail('Bill total exceeds the supported amount.')
+    bid = db.execute("""INSERT INTO bills(visit_id,bill_date,snapshot,lines,total_paise,note,created_by,created_at)
+        VALUES(NULL,?,?,?,?,?,?,?)""", (today(db), dump(snapshot), dump(lines), total, body.note, user['id'], now())).lastrowid
+    save_bill_revision(db, bid, user, 'Service bill generated')
+    audit(db, user, 'Generated service bill', 'bill', bid, dump({'patient_id': body.patient_id, 'total_paise': total}))
+    return save_replay(db, user, request, key, digest, bill_json(db, bid))
+
+
 class BillUpdate(StrictModel):
     consultation_fee_paise: int | None = Field(default=None, strict=True, ge=0, le=100_000_000)
     version: int
@@ -999,6 +1063,8 @@ def edit_bill(bid: int, body: BillUpdate, request: Request, user=Depends(current
         return result
     old = bill_json(db, bid)
     check_version(old, body.version)
+    if old['visit_id'] is None and (not body.extras or body.consultation_fee_paise is not None):
+        fail('Service bills require at least one charge and cannot include a consultation fee.')
     lines = [{**line, **({'unit_price_paise': body.consultation_fee_paise, 'amount_paise': line['quantity'] * body.consultation_fee_paise} if body.consultation_fee_paise is not None else {})} for line in old['lines'] if line['kind'] == 'Consultation']
     for extra in body.extras:
         if extra.charge_id is not None:

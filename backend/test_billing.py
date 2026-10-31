@@ -257,3 +257,29 @@ def test_all_bill_prices_editable_on_create_and_update(client):
     assert client.get(f"/api/bills/{bill['id']}/revisions/1").json()['bill']['total_paise'] == 27000
     paid = post(client, f"/bills/{bill['id']}/payments", {'version': edited['version'], 'amount_paise': 1000, 'method': 'Cash'}).json()
     assert client.patch(f"/api/bills/{bill['id']}", headers={'Idempotency-Key': str(uuid.uuid4())}, json={'version': paid['version'], 'consultation_fee_paise': 0, 'extras': []}).status_code == 409
+
+
+def test_existing_sqlite_bill_migration_preserves_payments_and_revisions(client):
+    if m.DATABASE_URL:
+        return
+    p,dep,dr,v=priced_setup(client)
+    bill=post(client,'/bills',bill_body(client,v)).json()
+    post(client,f"/bills/{bill['id']}/payments",{'version':bill['version'],'amount_paise':10000,'method':'Cash'}).raise_for_status()
+    before=client.get(f"/api/bills/{bill['id']}").json()
+    with m.connect() as db:
+        db.execute('PRAGMA foreign_keys=OFF')
+        ddl=db.execute("SELECT sql FROM sqlite_master WHERE name='bills'").fetchone()[0]
+        ddl=ddl.replace('CREATE TABLE bills','CREATE TABLE legacy_bills').replace('visit_id INTEGER UNIQUE','visit_id INTEGER NOT NULL UNIQUE')
+        db.execute(ddl)
+        db.execute('INSERT INTO legacy_bills SELECT * FROM bills')
+        db.execute('DROP TABLE bills')
+        db.execute('ALTER TABLE legacy_bills RENAME TO bills')
+    m.init_db()
+    m.init_db()
+    assert client.get(f"/api/bills/{bill['id']}").json()==before
+    with m.connect() as db:
+        assert not db.execute('PRAGMA foreign_key_check').fetchall()
+    response=post(client,'/service-bills',{'patient_id':p['id'],'extras':[{'description':'X-ray','unit_price_paise':10000}]})
+    assert response.status_code==200,response.text
+    assert response.json()['visit_id'] is None
+    assert response.json()['id']>bill['id']
